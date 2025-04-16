@@ -3072,17 +3072,16 @@ static void UpdateTemp()
 
 			if (tm.Check(100))
 			{
-#ifndef WIN32
 				if (!__debug) { HW::WDT->Update(); };
-#endif
 
-				buf[0] = 0x11;
+				buf[0] = 0;
+				buf[1] = 41;
 
-				dsc.adr = 0x68;
+				dsc.adr = 0x50;
 				dsc.wdata = buf;
-				dsc.wlen = 1;
-				dsc.rdata = &rbuf;
-				dsc.rlen = 2;
+				dsc.wlen = 2;
+				dsc.rdata = buf+2;
+				dsc.rlen = 1;
 				dsc.wdata2 = 0;
 				dsc.wlen2 = 0;
 
@@ -3101,118 +3100,14 @@ static void UpdateTemp()
 				if (dsc.ack && dsc.readedLen == dsc.rlen)
 				{
 					i32 t = (i16)ReverseWord(rbuf);
-					
-					t = (t * 10 + 128) / 256;
-
-					if (t < (-600))
-					{
-						t += 2560;
-					};
-
-					tempClock = t;
-				};
-				//else
-				//{
-				//	tempClock = -2730;
-				//};
-
-				i++;
-			};
-
-			break;
-
-		case 2:
-
-			buf[0] = 0x0E;
-			buf[1] = 0x20;
-			buf[2] = 0xC8;
-
-			dsc2.adr = 0x68;
-			dsc2.wdata = buf;
-			dsc2.wlen = 3;
-			dsc2.rdata = 0;
-			dsc2.rlen = 0;
-			dsc2.wdata2 = 0;
-			dsc2.wlen2 = 0;
-
-			if (I2C_AddRequest(&dsc2))
-			{
-				i++;
-			};
-
-			break;
-
-		case 3:
-
-			if (dsc2.ready)
-			{
-				buf[0] = 0;
-
-				dsc.adr = 0x49;
-				dsc.wdata = buf;
-				dsc.wlen = 1;
-				dsc.rdata = &rbuf;
-				dsc.rlen = 2;
-				dsc.wdata2 = 0;
-				dsc.wlen2 = 0;
-
-				if (I2C_AddRequest(&dsc))
-				{
-					i++;
-				};
-			};
-
-			break;
-
-		case 4:
-
-			if (dsc.ready)
-			{
-				if (dsc.ack && dsc.readedLen == dsc.rlen)
-				{
-					i32 t = (i16)ReverseWord(rbuf);
 
 					temp = (t * 10 + 64) / 128;
 				};
-				//else
-				//{
-				//	temp = -2730;
-				//};
-
-#if defined(CPU_SAME53) || defined(CPU_SAM4SA)
 
 				i = 0;
 			};
 
 			break;
-
-#elif defined(CPU_XMC48)
-
-				HW::SCU_GENERAL->DTSCON = SCU_GENERAL_DTSCON_START_Msk;
-				
-				i++;
-			};
-
-			break;
-
-		case 5:
-
-			if (HW::SCU_GENERAL->DTSSTAT & SCU_GENERAL_DTSSTAT_RDY_Msk)
-			{
-				cpu_temp = ((i32)(HW::SCU_GENERAL->DTSSTAT & SCU_GENERAL_DTSSTAT_RESULT_Msk) - 605) * 1000 / 205;
-
-				i = 0;
-			};
-
-			break;
-
-#elif defined(WIN32)
-
-				i = 0;
-			};
-
-			break;
-#endif
 	};
 }
 
@@ -3991,7 +3886,7 @@ static void InitTaskList()
 		Task(UpdateTemp,			MS2CTM(1)	),
 		Task(UpdateMan,				US2CTM(100)	),
 		Task(UpdateAccel,			MS2CTM(1)	),
-		Task(UpdateI2C,				US2CTM(20)	),
+		Task(UpdateI2C,				US2CTM(1)	),
 		Task(SaveVars,				MS2CTM(1)	),
 		Task(UpdateRcvTrm,			US2CTM(1)	),
 		Task(UpdateSPI,				US2CTM(20)	),
@@ -4305,27 +4200,22 @@ int main()
 
 	LoadVars();
 
-
-#ifndef WIN32
-
 	comTrm.Connect(ComPort::ASYNC, TRM_COM_BAUDRATE, TRM_COM_PARITY, TRM_COM_STOPBITS);
 
-	comRcv.Connect(ComPort::ASYNC, RCV_COM_BAUDRATE, RCV_COM_PARITY, 2);
+	comRcv.Connect(ComPort::ASYNC, RCV_COM_BAUDRATE, RCV_COM_PARITY, RCV_COM_STOPBITS);
 
 	//__breakpoint(0);
 
 	
-	FlashInitBoot();
+	//FlashInitBoot();
 
-	FlashRcv();
+	//FlashRcv();
 	
-	FlashTrm();
+	//FlashTrm();
 
-	ReadNumDevRcvTrm();
+	//ReadNumDevRcvTrm();
 
 	InitTaskList();
-
-#endif
 
 	u32 fc = 0;
 
@@ -4345,63 +4235,7 @@ int main()
 
 			//if ((fps & 3) == 0) SEGGER_RTT_printf(0, RTT_CTRL_TEXT_WHITE "%u\n", fps);
 
-
-#ifdef WIN32
-
-			extern u32 txThreadCount;
-
-			Printf(0, 0, 0xFC, "FPS=%9i", fps);
-//			Printf(0, 1, 0xF0, "%lu", testDspReqCount);
-			Printf(0, 2, 0xF0, "%lu", txThreadCount);
-#endif
 		};
-
-#ifdef WIN32
-
-		UpdateDisplay();
-
-		static TM32 tm2;
-
-		byte key = 0;
-
-		if (tm2.Check(50))
-		{
-			if (_kbhit())
-			{
-				key = _getch();
-
-				if (key == 27) break;
-			};
-
-			if (key == 'w')
-			{
-				NandFlash_WriteEnable();
-			}
-			else if (key == 'e')
-			{
-				NandFlash_WriteDisable();
-			}
-			else if (key == 'p')
-			{
-				NandFlash_FullErase();
-			};
-		};
-
-		Sleep(0);
-
-#endif
 
 	}; // while (1)
-
-#ifdef WIN32
-
-	NAND_FlushBlockBuffers();
-
-	I2C_Destroy();
-	SPI_Destroy();
-
-	//_fcloseall();
-
-#endif
-
 }
