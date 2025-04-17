@@ -43,7 +43,7 @@
     <NMakeReBuildCommandLine>wmake -h -a version=Debug targetcpu=SAM4SA</NMakeReBuildCommandLine>
     <NMakeCleanCommandLine>%40del /Q $(OutDir)*.*</NMakeCleanCommandLine>
     <NMakeOutput>$(OutDir)G26P.2.RCV.axf</NMakeOutput>
-    <NMakePreprocessorDefinitions>_DEBUG;__softfp=;CPU_SAM4SA;__CC_ARM;</NMakePreprocessorDefinitions>
+    <NMakePreprocessorDefinitions>_DEBUG;__softfp=;CPU_SAM4SA;__CC_ARM;DEF_SPIM_IMP_V2;DEF_I2C_IMP_V2;</NMakePreprocessorDefinitions>
     <NMakeIncludeSearchPath>$(ProjectDir)..\..\..\G_LIBS\cpp;$(ARMCC50INC);$(ProjectDir)..\..\Include;$(ProjectDir)..\Include;</NMakeIncludeSearchPath>
     <ExecutablePath />
     <IncludePath />
@@ -61,7 +61,7 @@
     <NMakeReBuildCommandLine>wmake -h -a version=Release targetcpu=SAM4SA</NMakeReBuildCommandLine>
     <NMakeCleanCommandLine>%40del /Q $(OutDir)*.*</NMakeCleanCommandLine>
     <NMakeOutput>$(OutDir)G26P.2.RCV.axf</NMakeOutput>
-    <NMakePreprocessorDefinitions>__softfp=;CPU_SAM4SA;__CC_ARM;</NMakePreprocessorDefinitions>
+    <NMakePreprocessorDefinitions>__softfp=;CPU_SAM4SA;__CC_ARM;DEF_SPIM_IMP_V2;DEF_I2C_IMP_V2;</NMakePreprocessorDefinitions>
     <NMakeIncludeSearchPath>$(ProjectDir)..\..\..\G_LIBS\cpp;$(ARMCC50INC);$(ProjectDir)..\..\Include;$(ProjectDir)..\Include;</NMakeIncludeSearchPath>
     <ExecutablePath />
     <IncludePath />

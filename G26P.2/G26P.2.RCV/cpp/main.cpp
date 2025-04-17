@@ -897,14 +897,14 @@ static Ptr<REQ> CreateRcvReq04(byte adr, byte saveParams, u16 tryCount)
 
 static bool CallBackRcvReq05(Ptr<REQ> &q)
 {
-	ReqRcv05 &req = *((ReqRcv05*)q->wb.data);
+	//ReqRcv05 &req = *((ReqRcv05*)q->wb.data);
 	RspRcv02 &rsp = *((RspRcv02*)q->rb.data);
 
 	//bool crcOK = q->crcOK;
 
 	q->rsp->len = 0;
 
-	byte a = (req.r[0].adr-1) & 15;
+	//byte a = (req.r[0].adr-1) & 15;
 
 	if (q->crcOK)
 	{
@@ -1947,7 +1947,7 @@ static bool RequestMan_30(u16 *data, u16 reqlen, MTB* mtb)
 	curRcv[nf] = nr+1;
 
 	struct Rsp { u16 rw; };
-	static Rsp rsp; 
+	static Rsp nulRsp; 
 	
 	static u16 prevOff = 0;
 	static u16 prevLen = 0;
@@ -1955,10 +1955,10 @@ static bool RequestMan_30(u16 *data, u16 reqlen, MTB* mtb)
 
 	//static byte sensInd = 0;
 
-	rsp.rw = req.rw;
+	nulRsp.rw = req.rw;
 
-	mtb->data1 = (u16*)&rsp;
-	mtb->len1 = sizeof(rsp)/2;
+	mtb->data1 = (u16*)&nulRsp;
+	mtb->len1 = sizeof(nulRsp)/2;
 	mtb->data2 = 0;
 	mtb->len2 = 0;
 
@@ -2041,19 +2041,19 @@ static bool RequestMan_30(u16 *data, u16 reqlen, MTB* mtb)
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-static bool RequestMan_71(u16 *data, u16 len, MTB* mtb)
+static bool RequestMan_71(u16 *data, u16 rlen, MTB* mtb)
 {
 	struct Rsp { u16 rw; };
 	static Rsp rsp; 
 
 	static byte index = 0;
 
-	if (data == 0 || len == 0 || len > 4 || mtb == 0) return false;
+	if (data == 0 || rlen == 0 || rlen > 4 || mtb == 0) return false;
 
 	mtb->data2 = 0;
 	mtb->len2 = 0;
 
-	if (len < 3)
+	if (rlen < 3)
 	{
 		index = GetNextFireType(index);
 
@@ -2674,7 +2674,7 @@ static void MainMode()
 					bool crc = true;
 				#endif
 
-					u16 rw = manReqWord | ((3+fireType) << 4) | (rcv - 1);
+					//u16 rw = manReqWord | ((3+fireType) << 4) | (rcv - 1);
 					
 					//if (r02.hdr.rw != rw || r02.hdr.cnt != fireCounter)
 					//{

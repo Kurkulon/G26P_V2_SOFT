@@ -15,7 +15,7 @@ ghdir = $(curdir)\..\..\Include,$(curdir)\..\Include
 
 !ifeq version Debug
 
-debug_compiler_options = -O0 --debug -D_DEBUG
+debug_compiler_options = -O0 --debug -D_DEBUG --remarks --diag_suppress=96,1297,1301,2530,2815
 debug_linker_options = 
 libsuffix=d
 
@@ -89,7 +89,7 @@ libname = $(libdir)\$(targetcpu)_$(libsuffix).a
 
 compiler_options = $(debug_compiler_options) $(cpu_compiler_options) --gnu --asm --interleave -g -c --diag_style=ide &
 	  --feedback "$(objdir)\$(target_name).fed"  &
-	 -D__MICROLIB -DCPU_$(targetcpu) --no_depend_system_headers --reduce_paths -J$(libdir)\cpp,"$(%ARMCC50INC)" -I$(ghdir)
+	 -D__MICROLIB -DCPU_$(targetcpu) -DDEF_SPIM_IMP_V2 -DDEF_I2C_IMP_V2 --no_depend_system_headers --reduce_paths -J$(libdir)\cpp,"$(%ARMCC50INC)" -I$(ghdir)
 
 ##################################################################################################
 
