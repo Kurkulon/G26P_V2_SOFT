@@ -62,9 +62,12 @@ static S_SPIM	spi(SPI_SERCOM_NUM, PIO_SPCK, PIO_MOSI, PIO_MISO, PIO_CS, SPCK, MO
 
 #elif defined(CPU_SAM4SA)
 
-static u32 SPI_CS_MASK[] = { CS0, CS1 };
+static const SPI_DSC_CS SPI_CS[] = 
+{ 
+	{ PIO_CS, CS0, NS2SPI(200), 0 }
+};
 
-static S_SPIM	spi(SPI_SERCOM_NUM, PIO_CS, SPI_CS_MASK, ArraySize(SPI_CS_MASK), MCK);
+static S_SPIM	spi(SPI_SERCOM_NUM, SPI_CS, ArraySize(SPI_CS), MCK);
 
 #elif defined(CPU_XMC48)
 

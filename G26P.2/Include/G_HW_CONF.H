@@ -124,36 +124,18 @@
 
 	// ++++++++++++++	SPI	++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-	//#define SPI					HW::SPI0
-	#define PIO_SPCK			HW::PIOA
-	#define PIO_MOSI			HW::PIOA
-	#define PIO_MISO			HW::PIOA
-	#define PIO_CS				HW::PIOB
+	#define PIO_CS				HW::PIOA
 
-	#define PIN_SPCK			9
-	#define PIN_MOSI			8 
-	#define PIN_MISO			10 
-	#define PIN_CS0				10 
-	#define PIN_CS1				11
+	#define PIN_CS0				23 
+	//#define PIN_CS1				11
 
-	#define SPCK				(1<<PIN_SPCK) 
-	#define MOSI				(1<<PIN_MOSI) 
-	#define MISO				(1<<PIN_MISO) 
 	#define CS0					(1<<PIN_CS0) 
-	#define CS1					(1<<PIN_CS1) 
+	//#define CS1					(1<<PIN_CS1) 
 
-	#define SPI_PMUX_SPCK		PORT_PMUX_C 
-	#define SPI_PMUX_MOSI		PORT_PMUX_C 
-	#define SPI_PMUX_MISO		PORT_PMUX_C 
-	#define SPI_DIPO_BITS		SPI_DIPO(2)
-	#define SPI_DOPO_BITS		SPI_DOPO(0) 
-
-	#define SPI_GEN_SRC			GEN_MCK
-	#define SPI_GEN_CLK			GEN_MCK_CLK
 	#define SPI_BAUDRATE		8000000
 
-	#define Pin_SPI_IRQ_Set() HW::PIOB->BSET(15)		
-	#define Pin_SPI_IRQ_Clr() HW::PIOB->BCLR(15)		
+	//#define Pin_SPI_IRQ_Set() HW::PIOB->BSET(15)		
+	//#define Pin_SPI_IRQ_Clr() HW::PIOB->BCLR(15)		
 
 	// ++++++++++++++	MANCH	++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 	

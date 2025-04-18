@@ -2868,7 +2868,12 @@ static u8 rxAccel[50];
 
 static bool AccelReadReg(byte reg, u16 count)
 {
-	dscAccel.adr = (reg<<1)|1;
+	byte y = reg ^ (reg >> 1);
+
+	y = y ^ (y >> 2);
+	y = y ^ (y >> 4) ^ 1;
+
+	dscAccel.adr = (reg<<2)|(y&1);
 	dscAccel.alen = 1;
 	//dscAccel.baud = 8000000;
 	dscAccel.csnum = 0;
@@ -2884,7 +2889,12 @@ static bool AccelReadReg(byte reg, u16 count)
 
 static bool AccelWriteReg(byte reg, u16 count)
 {
-	dscAccel.adr = (reg<<1)|0;
+	byte y = reg ^ (reg >> 1);
+
+	y = y ^ (y >> 2);
+	y = y ^ (y >> 4);
+
+	dscAccel.adr = (reg<<2)|2|(y&1);
 	dscAccel.alen = 1;
 	dscAccel.csnum = 0;
 	dscAccel.wdata = txAccel;
@@ -2901,6 +2911,7 @@ static void UpdateAccel()
 {
 	static byte i = 0; 
 	static i32 fx = 0, fy = 0, fz = 0, fv = 0, ft = 0;
+	static i16 tt = 0;
 
 	static TM32 tm;
 
@@ -2908,8 +2919,7 @@ static void UpdateAccel()
 	{
 		case 0:
 
-			txAccel[0] = 0x52;
-			AccelWriteReg(0x2F, 1); // Reset
+			tm.Reset();
 
 			i++;
 
@@ -2917,9 +2927,9 @@ static void UpdateAccel()
 
 		case 1:
 
-			if (dscAccel.ready)
+			if (tm.Check(35))
 			{
-				tm.Reset();
+				AccelReadReg(0x16, 1); // INT_STATUS
 
 				i++;
 			};
@@ -2928,9 +2938,10 @@ static void UpdateAccel()
 
 		case 2:
 
-			if (tm.Check(35))
+			if (dscAccel.ready)
 			{
-				AccelReadReg(0x1E, 18);
+				txAccel[0] = 0;
+				AccelWriteReg(0x1, 1); // CTRL Set PORST to zero
 
 				i++;
 			};
@@ -2941,8 +2952,7 @@ static void UpdateAccel()
 
 			if (dscAccel.ready)
 			{
-				txAccel[0] = 0;
-				AccelWriteReg(0x28, 1); // FILTER SETTINGS REGISTER
+				tm.Reset();
 
 				i++;
 			};
@@ -2951,10 +2961,9 @@ static void UpdateAccel()
 
 		case 4:
 
-			if (dscAccel.ready)
+			if (tm.Check(10))
 			{
-				txAccel[0] = 0;
-				AccelWriteReg(0x2D, 1); // CTRL Set PORST to zero
+				AccelReadReg(0x9, 6); // Z_MSB - X_LSB 
 
 				i++;
 			};
@@ -2965,7 +2974,27 @@ static void UpdateAccel()
 
 			if (dscAccel.ready)
 			{
-				AccelReadReg(0x2D, 1);
+				i16 x = (rxAccel[4] << 8) | rxAccel[5];
+				i16 y = (rxAccel[2] << 8) | rxAccel[3];
+				i16 z = (rxAccel[0] << 8) | rxAccel[1];
+
+				fx += (x*45511 - fx) / 16;
+				fy += (y*45511 - fy) / 16;
+				fz += (z*45511 - fz) / 16;
+
+				ay =  (fz / 16384); 
+				az = -(fy / 16384); 
+				ax = -(fx / 16384);
+
+				i32 vx = ABS(x*45511 - fx);
+				i32 vy = ABS(y*45511 - fy);
+				i32 vz = ABS(z*45511 - fz);
+
+				fv += ((i32)(vx+vy+vz)-fv)/128;
+
+				i32 t = fv/16384;
+
+				vibration = LIM(t, 0, 0xFFFF);
 
 				i++;
 			};
@@ -2974,23 +3003,9 @@ static void UpdateAccel()
 
 		case 6:
 
-			if (dscAccel.ready)
-			{
-				if (rxAccel[0] != 0)
-				{
-					txAccel[0] = 0;
-					AccelWriteReg(0x2D, 1); // CTRL Set PORST to zero
-					i--; 
-				}
-				else
-				{
-					txAccel[0] = 0;
-					AccelWriteReg(0x2E, 1); // Self Test
+			AccelReadReg(0x13, 1); //TEMP_MSB
 
-					tm.Reset();
-					i++;
-				};
-			};
+			i++;
 
 			break;
 
@@ -2998,6 +3013,10 @@ static void UpdateAccel()
 
 			if (dscAccel.ready)
 			{
+				tt = rxAccel[0] << 8;
+
+				AccelReadReg(0x12, 1); //TEMP_LSB
+
 				i++;
 			};
 
@@ -3005,47 +3024,15 @@ static void UpdateAccel()
 
 		case 8:
 
-			if (tm.Check(10))
-			{
-				AccelReadReg(6, 11); // X_MSB 
-
-				i++;
-			};
-
-			break;
-
-		case 9:
-
 			if (dscAccel.ready)
 			{
-				i32 t = (rxAccel[0] << 8)  | rxAccel[1];
-				i32 x = (rxAccel[2] << 24) | (rxAccel[3] << 16) | (rxAccel[4]  <<8);
-				i32 y = (rxAccel[5] << 24) | (rxAccel[6] << 16) | (rxAccel[7]  <<8);
-				i32 z = (rxAccel[8] << 24) | (rxAccel[9] << 16) | (rxAccel[10] <<8);
+				tt |= rxAccel[0];
 
-				fx += (x - fx) / 16;
-				fy += (y - fy) / 16;
-				fz += (z - fz) / 16;
-				ft += (t - ft) / 4;
+				ft += (((i32)tt * 125) - ft) / 32;
 
-				ay = -(fz / 65536); 
-				ax = -(fy / 65536); 
-				az =  (fx / 65536);
+				at = (ft - 512 * 125 * 16) / 64 + 2300;
 
-				//at = 2500 + ((1852 - t) * 2000 + 91) / 181;
-				at = 2500 + ((1852 - ft) * 11315 + 512) / 1024;
-
-				i32 vx = ABS(x - fx) / 64;
-				i32 vy = ABS(y - fy) / 64;
-				i32 vz = ABS(z - fz) / 64;
-
-				fv += ((i32)(vx+vy+vz)-fv)/256;
-
-				t = fv/1024;
-
-				vibration = LIM(t, 0, 0xFFFF);
-
-				i--;
+				i = 4;
 			};
 
 			break;
@@ -3885,11 +3872,11 @@ static void InitTaskList()
 		Task(MainMode,				US2CTM(100)	),
 		Task(UpdateTemp,			MS2CTM(1)	),
 		Task(UpdateMan,				US2CTM(100)	),
-		Task(UpdateAccel,			MS2CTM(1)	),
-		Task(UpdateI2C,				US2CTM(1)	),
+		Task(UpdateAccel,			US2CTM(50)	),
+		Task(UpdateI2C,				US2CTM(10)	),
 		Task(SaveVars,				MS2CTM(1)	),
 		Task(UpdateRcvTrm,			US2CTM(1)	),
-		Task(UpdateSPI,				US2CTM(20)	),
+		Task(UpdateSPI,				US2CTM(10)	),
 		Task(UpdateTestFlashWrite,	MS2CTM(1)	)
 	};
 
