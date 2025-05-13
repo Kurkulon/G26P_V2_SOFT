@@ -19,6 +19,7 @@
 #define BOOT_MAN_REQ_WORD		RCV_BOOT_REQ_WORD
 #define BOOT_MAN_REQ_MASK 		RCV_BOOT_REQ_MASK
 
+#define BOOT_HW_INIT 			InitHardware
 #define BOOT_HW_UPDATE 			UpdateADC
 
 //#define PIO_RTS					HW::PIOF
@@ -34,7 +35,7 @@
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-#define MAIN_LOOP_PIN_TGL()		{ HW::PIOF->NOT(PF4);}
+//#define MAIN_LOOP_PIN_TGL()		{ HW::PIOF->NOT(PF4);}
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

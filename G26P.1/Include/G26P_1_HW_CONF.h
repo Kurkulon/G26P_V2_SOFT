@@ -7,6 +7,10 @@
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+#define FLASHSPI_EXTWDT_TIMEOUT	(MS2CTM(100))
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 #define CLKIN_MHz			25
 
 #ifndef BOOTLOADER
@@ -173,17 +177,17 @@
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-#define INIT_PORTF_MUX			0x0000		//  0000 0000 0000 0000
-#define INIT_PORTG_MUX			0x0000		//  0000 0000 0000 0000
+#define INIT_PORTF_MUX			0		
+#define INIT_PORTG_MUX			0		
 
-#define INIT_PORTF_FER 			0x000F		//  0000 0000 0000 1111
-#define INIT_PORTG_FER 			0x000F		//  0000 0000 0000 1111
+#define INIT_PORTF_FER 			0		
+#define INIT_PORTG_FER 			0		
 
-#define INIT_PORTFIO_DIR 		0x05F0		//  0000 0101 1111 0000
-#define INIT_PORTGIO_DIR 		0xFFF0		//  1111 1111 1111 0000
+#define INIT_PORTFIO_DIR 		(PF4|PF5|PF6|PF7|MASK_RTS)	
+#define INIT_PORTGIO_DIR 		(PG5|PG6|PG7)		
 
-#define INIT_PORTFIO_INEN 		0x0000		//  0000 0000 0000 0000
-#define INIT_PORTGIO_INEN 		0x0000		//  0000 0000 0000 0000
+#define INIT_PORTFIO_INEN 		0		
+#define INIT_PORTGIO_INEN 		0		
 
 #define INIT_PORTFIO 			MASK_RTS
 #define INIT_PORTGIO 			0
@@ -210,9 +214,9 @@
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-#define MAIN_LOOP_PIN_SET()		{*pPORTFIO_SET = 1<<5;}
-#define MAIN_LOOP_PIN_CLR()		{*pPORTFIO_CLEAR = 1<<5;}
-#define MAIN_LOOP_PIN_TGL()		{*pPORTFIO_TOGGLE = 1<<5;}
+#define MAIN_LOOP_PIN_SET()		{*pPORTFIO_SET = PF4;}
+#define MAIN_LOOP_PIN_CLR()		{*pPORTFIO_CLEAR = PF4;}
+#define MAIN_LOOP_PIN_TGL()		{*pPORTFIO_TOGGLE = PF4;}
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
