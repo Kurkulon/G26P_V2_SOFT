@@ -20,7 +20,12 @@
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-#define RCV_MAX_NUM_STATIONS	8
+#define RCV_AUTO_GAIN_LO_AMP	8192
+#define RCV_AUTO_GAIN_HI_AMP	24576
+
+#define RCV_MAN_VEC_TIMOUT		10000  //ms
+
+#define RCV_MAX_NUM_STATIONS	13
 #define RCV_COM_BAUDRATE		6250000
 #define RCV_COM_PARITY			0
 #define RCV_COM_STOPBITS		2
@@ -32,7 +37,7 @@
 #define RCV_BOOT_COM_PARITY		RCV_COM_PARITY
 #define RCV_BOOT_COM_STOPBITS	RCV_COM_STOPBITS
 
-#define RCV_MAN_REQ_WORD 		0xAA00
+#define RCV_MAN_REQ_WORD 		0xAB00
 #define RCV_MAN_REQ_MASK 		0xFF00
 
 #define RCV_FltResist(v)	(((v) * 941 + 2048) / 4096)
@@ -242,7 +247,46 @@ __packed struct Transmiter
 	
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+struct AutoGain
+{
+	u16 gain;
+	u16 maxAmp;
+
+	u16 GetGain()			{ return gain&7; }
+	void SetGain(u16 v)		{ gain = (gain & ~7)|(v&7); }
+	u16 GetPreAmp()			{ return gain>>7; }
+	void SetPreAmp(u16 v)	{ gain = (gain & ~(1<<7))|(v<<7); }
+
+	void Inc()
+	{ 
+		u16 g = GetGain();
+
+		if (GetPreAmp())
+		{
+			if (g != 7) SetGain(g+1);
+		}
+		else
+		{
+			if (g == 3) gain = 1<<7; else if (g != 7) SetGain(g+1);
+		};
+	}
+
+	void Dec()
+	{
+		u16 g = GetGain();
+
+		if (GetPreAmp())
+		{
+			if (g == 0) gain = 3; else SetGain(g-1);
+		}
+		else
+		{
+			if (g != 0) SetGain(g-1);
+		};
+	}
+};
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 #ifdef _ADI_COMPILER
 #pragma pack()

@@ -34,7 +34,7 @@
 //#define __TEST__
 #endif
 
-enum { VERSION = 0x103 };
+enum { VERSION = 0x107 };
 
 //#pragma O0
 //#pragma Otime
@@ -90,6 +90,7 @@ __packed struct MainVars // NonVolatileVars
 	u16 levelNoVibration;
 	u16 firePeriod;
 	u16 lfMnplEnabled;
+	u16 autoGain;
 };
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -160,6 +161,8 @@ static Ptr<MB> curManVec60;
 static RspMan71 rspMan71[RCV_FIRE_NUM];
 static byte curRcv[RCV_FIRE_NUM] = { 0 };
 
+static AutoGain autoGain[TRANSMITER_NUM] = { 0 };
+
 static Ptr<MB> manVec72[2];
 static Ptr<MB> curManVec72;
 static byte indManVec72 = 0;
@@ -167,12 +170,12 @@ static byte indManVec72 = 0;
 static u16 manReqWord = RCV_MAN_REQ_WORD;
 static u16 manReqMask = RCV_MAN_REQ_MASK;
 
-static u16 memReqWord = 0x3F00;
-static u16 memReqMask = 0xFF00;
+//static u16 memReqWord = 0x3F00;
+//static u16 memReqMask = 0xFF00;
 
 static u16 verDevice = VERSION;
 
-static u16 verMemDevice = 0x300;
+//static u16 verMemDevice = 0x300;
 
 static byte mainModeState = 0;
 static byte fireType = 0;
@@ -336,7 +339,16 @@ static Ptr<REQ> CreateRcvReqFire(byte n, byte next_n, u16 fc)
 	req.r[2].func		= req.r[1].func			= req.r[0].func			= 1;
 	req.r[2].n			= req.r[1].n			= req.r[0].n			= n;
 	req.r[2].next_n		= req.r[1].next_n		= req.r[0].next_n		= next_n;
-	req.r[2].next_gain	= req.r[1].next_gain	= req.r[0].next_gain	= mv.trans[transIndex[next_n]].gain;
+
+	if (mv.autoGain)
+	{
+		req.r[2].next_gain	= req.r[1].next_gain = req.r[0].next_gain = autoGain[transIndex[next_n]].gain;
+	}
+	else
+	{
+		req.r[2].next_gain	= req.r[1].next_gain	= req.r[0].next_gain	= mv.trans[transIndex[next_n]].gain;
+	};
+
 	req.r[2].st 		= req.r[1].st 			= req.r[0].st 			= trans.st;
 	req.r[2].sl 		= req.r[1].sl 			= req.r[0].sl 			= trans.sl;
 	req.r[2].sd 		= req.r[1].sd 			= req.r[0].sd 			= trans.sd;
@@ -736,7 +748,14 @@ static Ptr<REQ> CreateRcvReq03(byte adr, u16 tryCount)
 	{
 		byte n = transIndex[i];
 
-		req.r[1].gain[i] = req.r[0].gain[i] = mv.trans[n].gain;
+		if (mv.autoGain)
+		{
+			req.r[1].gain[i] = req.r[0].gain[i] = autoGain[n].gain;
+		}
+		else
+		{
+			req.r[1].gain[i] = req.r[0].gain[i] = mv.trans[n].gain;
+		};
 	};
 
 #else
@@ -803,6 +822,16 @@ static bool CallBackRcvReq04(Ptr<REQ> &q)
 				rspMan71[fireType].power[i + 1] = rsp.power[1];
 				rspMan71[fireType].power[i + 2] = rsp.power[2];
 				rspMan71[fireType].power[i + 3] = rsp.power[3];
+
+				if (mv.autoGain)
+				{
+					byte n = transIndex[fireType];
+
+					if (rsp.maxAmp[0] > autoGain[n].maxAmp) autoGain[n].maxAmp = rsp.maxAmp[0];
+					if (rsp.maxAmp[1] > autoGain[n].maxAmp) autoGain[n].maxAmp = rsp.maxAmp[1];
+					if (rsp.maxAmp[2] > autoGain[n].maxAmp) autoGain[n].maxAmp = rsp.maxAmp[2];
+					if (rsp.maxAmp[3] > autoGain[n].maxAmp) autoGain[n].maxAmp = rsp.maxAmp[3];
+				};
 			};
 
 		#else
@@ -1822,7 +1851,8 @@ static u32 InitRspMan_10(__packed u16 *data)
 	*(data++)  	= mv.disableFireNoVibration;			//31. Отключение регистрации на стоянке(0 - нет, 1 - да)
 	*(data++)  	= mv.levelNoVibration;					//32. Уровень вибрации режима отключения регистрации на стойнке(у.е)(ushort)
 	*(data++)  	= mv.firePeriod;						//33. Период опроса(мс)(ushort)
-	
+	*(data++)  	= mv.autoGain;							//34. Автоматическое усиление (0 - выкл, 1 - вкл)
+
 	return data - start;
 }
 
@@ -2221,6 +2251,8 @@ static bool RequestMan_90(u16 *data, u16 len, MTB* mtb)
 		case 0x61:	mv.disableFireNoVibration	= data[2];									break;	//	0x61 - Отключение регистрации на стоянке(0 - нет, 1 - да)
 		case 0x62:	mv.levelNoVibration			= data[2];									break;	//	0x62 - Уровень вибрации режима отключения регистрации на стойнке(у.е)(ushort)
 		case 0x63:	mv.firePeriod				= MAX(data[2],			300);				break;	//	0x63 - Период опроса(мс)(ushort)
+
+		case 0x70:	mv.autoGain					= MIN(data[2],			1				);	break;	//	0x70 - Автоматическое усиление (0 - выкл, 1 - вкл)
 
 		default:	return false;
 	};
@@ -2772,6 +2804,24 @@ static void MainMode()
 
 		case 8:
 		{
+			if (mv.autoGain && fireType != 2) // DipoleX
+			{
+				byte n = transIndex[fireType];
+
+				//if (fireType > 1) bufMaxAmp[(bufMaxAmpIndex++)&15] = autoGain[n].maxAmp;
+
+				if (autoGain[n].maxAmp > RCV_AUTO_GAIN_HI_AMP)
+				{
+					autoGain[n].Dec();
+				}
+				else if (autoGain[n].maxAmp < RCV_AUTO_GAIN_LO_AMP)
+				{
+					autoGain[n].Inc();
+				};
+
+				autoGain[n].maxAmp = 0;
+			};
+
 			byte pft = fireType;
 
 			fireType = nextFireType; 
@@ -3630,6 +3680,8 @@ static void InitMainVars()
 	mv.levelNoVibration			= 100;
 	mv.firePeriod				= 1000;
 	mv.lfMnplEnabled			= 0;
+
+	mv.autoGain					= 0;
 
 	SEGGER_RTT_WriteString(0, RTT_CTRL_TEXT_BRIGHT_CYAN "Init Main Vars Vars ... OK\n");
 }

@@ -141,7 +141,7 @@
 	
 	#define MAN_TRANSMIT_V1
 
-	#define PIO_MANCH		HW::PIOB
+	#define PIO_MANCH		HW::PIOA
 	#define PIN_L1			1 
 	#define PIN_L2			3 
 	#define PIN_H1			0 
