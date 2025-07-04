@@ -8,6 +8,7 @@
 #include "list.h"
 #include "pack.h"
 #include "flash.h"
+#include "TaskList.h"
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //static void CheckFlash();
@@ -166,7 +167,7 @@ static DSCRSP02 *wrDscRSP02 = 0;
 				
 //static RspRcv02 rsp02;
 
-static byte rspBuf[64] = "\n" "G26X_1_DSP" "\n" __DATE__ "\n" __TIME__ "\n";
+static byte rspBuf[64] = "\n" "G26P.1.DSP" "\n" __DATE__ "\n" __TIME__ "\n";
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -219,6 +220,8 @@ static bool RequestFunc01(byte *data, u16 len, ComPort::WriteBuffer *wb)
 		u16 delay = req.sd / dsc->r02.hdr.st;
 
 		dsc->r02.hdr.sd	= delay * dsc->r02.hdr.st;
+
+		DisableADC();
 
 		SyncReadSPORT(dsc, delay);
 	};
@@ -511,6 +514,8 @@ static void UpdateSport()
 			{
 				SetGain(dsc->next_gain & 7, dsc->next_gain & (1<<7));
 
+				EnableADC();
+
 				#ifdef RCV_TEST_WAVEPACK
 
 					dsc->sl = ArraySize(wave1);
@@ -792,7 +797,22 @@ static void LoadParams()
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+static TaskList taskList;
+
+static void InitTaskList()
+{
+	static Task tsk[] =
+	{
+		Task(UpdateBlackFin,			US2CTM(10)	),
+		Task(UpdateHardware,			US2CTM(10)	),
+		Task(UpdateSport,				US2CTM(10)	),
+		Task(UpdateSaveParams,			US2CTM(10)	),
+	};
+
+	for (u16 i = 0; i < ArraySize(tsk); i++) taskList.Add(tsk+i);
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 void main( void )
 {
@@ -818,22 +838,7 @@ void main( void )
 	{
 		MAIN_LOOP_PIN_TGL();
 
-		static byte i = 0;
-
-		#define CALL(p) case (__LINE__-S): p; break;
-
-		enum C { S = (__LINE__+3) };
-		switch(i++)
-		{
-			CALL( UpdateBlackFin()		);
-			CALL( UpdateHardware()		);
-			CALL( UpdateSport()			);
-			CALL( UpdateSaveParams()	);
-		};
-
-		i = (i > (__LINE__-S-3)) ? 0 : i;
-
-		#undef CALL
+		taskList.Update();
 	};
 
 //	return 0;

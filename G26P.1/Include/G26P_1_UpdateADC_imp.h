@@ -20,6 +20,48 @@ u16 GetNetAdr()
 void UpdateADC()
 {
 	static byte i = 0;
+	static CTM32 tm;
+
+	static DSCSPI dsc;
+	static u16 buf;
+
+	switch (i)
+	{
+		case 0:
+
+			if (tm.Check(MS2SCLK(1)) && adcEnable)
+			{
+				dsc.baud = 50;
+				dsc.mode = CPOL;//(CPOL|CPHA|LSBF);
+				dsc.csnum = 1;
+				dsc.rdata = &buf;
+				dsc.rlen = sizeof(buf);
+
+				spi1.AddRequest(&dsc);
+
+				i++;
+			};
+
+			break;
+
+		case 1:
+
+			if (dsc.ready)
+			{
+				netResist = (ReverseWord(buf) * 941 + 128) / 256; 
+
+				i = 0;
+			};
+
+			break;
+	};
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+static void UpdateADC_old()
+{
+	static byte i = 0;
 	static DSCI2C dsc;
 	static byte wbuf[4];
 	static byte rbuf[4];

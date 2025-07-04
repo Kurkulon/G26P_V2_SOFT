@@ -7,7 +7,7 @@
 
 //#pragma optimize_for_speed
 
-//#include "SPI.h"
+#include "SPI.h"
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -15,7 +15,16 @@
 #include "i2c.h"
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+static u16 SPI1_CS_MASK[] = { PG11, PG12 };
+
+static S_SPIM	spi1(1, HW::PIOG, SPI1_CS_MASK, ArraySize(SPI1_CS_MASK), SCLK);
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 #define SPORT_BUF_NUM 1
+
+bool adcEnable = true;
 
 const u32 coreCLK = CCLK;
 const u32 sysCLK = SCLK;
@@ -248,13 +257,24 @@ void SyncReadSPORT(DSCRSP02 *dsc, u16 delay) // (void *dst1, void *dst2, u16 len
 
 void SetGain(u16 v, bool preAmp)
 {
+	static DSCSPI dsc;
+	static u16 buf;
+
 	PIO_GAIN->WBIT(BM_GAIN, !preAmp);
-	
-	HW::SPI1->Baud	= 7; // SCLK=7MHz
-	HW::SPI1->Flg	= FLS5;	//FLS5|FLS2;
-	HW::SPI1->Ctl	= SPE|MSTR|SIZE|(TIMOD & 1);    // MSTR=1, CPOL=0, CPHA=0, LSBF=0, SIZE=1, EMISO=0, PSSE=0, GM=0, SZ=0, TIMOD=01
-	//*pPORTGIO_CLEAR = 1<<11;
-	HW::SPI1->TDBR	= 0x2A01|((v&7)<<4);
+
+	dsc.baud = 7;
+	dsc.mode = 0;//(CPOL|CPHA|LSBF);
+	dsc.csnum = 0;
+	dsc.wdata = &buf;
+	dsc.wlen = sizeof(buf);
+
+	spi1.AddRequest(&dsc);
+
+	//HW::SPI1->Baud	= 7; // SCLK=7MHz
+	//HW::SPI1->Flg	= FLS5;	//FLS5|FLS2;
+	//HW::SPI1->Ctl	= SPE|MSTR|SIZE|(TIMOD & 1);    // MSTR=1, CPOL=0, CPHA=0, LSBF=0, SIZE=1, EMISO=0, PSSE=0, GM=0, SZ=0, TIMOD=01
+	////*pPORTGIO_CLEAR = 1<<11;
+	//HW::SPI1->TDBR	= 0x2A01|((v&7)<<4);
 }
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -283,7 +303,9 @@ void InitHardware()
 {
 	LowLevelInit();
 
-	I2C_Init(SCLK_MHz, IVG_TWI, PID_TWI);
+	spi1.Connect(1000000);
+
+	//I2C_Init(SCLK_MHz, IVG_TWI, PID_TWI);
 
 	InitSPORT();
 
@@ -305,60 +327,62 @@ u16 GetTemp()
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-static void UpdateTemp()
-{
-	static byte i = 0;
-
-	static DSCI2C dsc;
-
-	static u16 rbuf = 0;
-	static byte buf[2];
-
-	static CTM32 tm;
-
-	switch (i)
-	{
-		case 0:
-
-			if (tm.Check(MS2CTM(100)))
-			{
-				buf[0] = 0;
-
-				dsc.adr = 0x49;
-				dsc.wdata = buf;
-				dsc.wlen = 1;
-				dsc.rdata = &rbuf;
-				dsc.rlen = 2;
-				dsc.wdata2 = 0;
-				dsc.wlen2 = 0;
-
-				if (I2C_AddRequest(&dsc))
-				{
-					i++;
-				};
-			};
-
-			break;
-
-		case 1:
-
-			if (dsc.ready)
-			{
-				if (dsc.ack && dsc.readedLen == dsc.rlen)
-				{
-					i32 t = (i16)ReverseWord(rbuf);
-
-					temp = (t * 10 + 64) / 128;
-				};
-
-				i = 0;
-			};
-
-			break;
-	};
-}
+//static void UpdateTemp()
+//{
+//	static byte i = 0;
+//
+//	static DSCI2C dsc;
+//
+//	static u16 rbuf = 0;
+//	static byte buf[2];
+//
+//	static CTM32 tm;
+//
+//	switch (i)
+//	{
+//		case 0:
+//
+//			if (tm.Check(MS2CTM(100)))
+//			{
+//				buf[0] = 0;
+//
+//				dsc.adr = 0x49;
+//				dsc.wdata = buf;
+//				dsc.wlen = 1;
+//				dsc.rdata = &rbuf;
+//				dsc.rlen = 2;
+//				dsc.wdata2 = 0;
+//				dsc.wlen2 = 0;
+//
+//				if (I2C_AddRequest(&dsc))
+//				{
+//					i++;
+//				};
+//			};
+//
+//			break;
+//
+//		case 1:
+//
+//			if (dsc.ready)
+//			{
+//				if (dsc.ack && dsc.readedLen == dsc.rlen)
+//				{
+//					i32 t = (i16)ReverseWord(rbuf);
+//
+//					temp = (t * 10 + 64) / 128;
+//				};
+//
+//				i = 0;
+//			};
+//
+//			break;
+//	};
+//}
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 void UpdateHardware()
 {
@@ -370,7 +394,7 @@ void UpdateHardware()
 		switch(i++)
 		{
 			CALL( UpdateADC()	);
-			CALL( UpdateTemp()	);
+			CALL( spi1.Update()	);
 		};
 
 		i = (i > (__LINE__-S-3)) ? 0 : i;

@@ -9,9 +9,9 @@
 //#define AT25_SPI_BAUD_RATE 10000000
 
 
-static u16 SPI_CS_MASK[] = { PF8 };
+static u16 SPI0_CS_MASK[] = { PF8 };
 
-static S_SPIM	spi(0, HW::PIOF, SPI_CS_MASK, ArraySize(SPI_CS_MASK), SCLK);
+static S_SPIM	spi(0, HW::PIOF, SPI0_CS_MASK, ArraySize(SPI0_CS_MASK), SCLK);
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

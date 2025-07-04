@@ -7,6 +7,8 @@
 
 #include "G26P_1_HW_CONF.h"
 
+#define DEF_SPIM_IMP_V2
+
 //#define FLASH_START_ADR 0x30000 	
 
 //#define FLASH_NEW

@@ -560,7 +560,7 @@ static void Init_ADC()
 
 	PMC->PCER0 = PID::ADC_M;
 
-	ADC->MR		= ADC_FREERUN|ADC_PRESCAL(~0)|ADC_STARTUP_8;	//0x0001FF80;
+	ADC->MR		= ADC_TRANSFER(2)|ADC_FREERUN|ADC_PRESCAL(~0)|ADC_STARTUP_8;	//0x0001FF80;
 	ADC->ACR	= ADC_TSON;
 	ADC->CHER	= ADC_CH3|ADC_CH15;
 	ADC->CR		= ADC_START|ADC_AUTOCAL;
@@ -570,14 +570,14 @@ static void Init_ADC()
 
 u16 Get_NetResist()
 {
-	return (HW::ADC->CDR[3] * 10919) >> 16;
+	return HW::ADC->CDR[3]; //return (HW::ADC->CDR[3] * 10919) >> 16;
 }
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 u16 Get_AVMAN()
 {
-	return (HW::ADC->CDR[3] * 1617) >> 16;
+	return (HW::ADC->CDR[15] * 1617) >> 16;
 }
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
