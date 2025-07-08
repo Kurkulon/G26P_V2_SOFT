@@ -29,7 +29,7 @@ void UpdateADC()
 	{
 		case 0:
 
-			if (tm.Check(MS2SCLK(1)) && adcEnable)
+			if (tm.Check(MS2CTM(1)) && adcEnable)
 			{
 				dsc.baud = 50;
 				dsc.mode = CPOL;//(CPOL|CPHA|LSBF);
@@ -48,7 +48,7 @@ void UpdateADC()
 
 			if (dsc.ready)
 			{
-				netResist = (ReverseWord(buf) * 941 + 128) / 256; 
+				netResist = (ReverseWord(buf) * 10296 + 2048) / 4096; 
 
 				i = 0;
 			};

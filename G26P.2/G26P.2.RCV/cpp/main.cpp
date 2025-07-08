@@ -592,7 +592,7 @@ static Ptr<REQ> CreateRcvReq02(byte adr, byte n, u16 tryCount)
 	ReqRcv02 &req = *((ReqRcv02*)rq->reqData);
 	adr = (adr-1)&15; 
 
-	q.crcType = REQ::CRC16_CCIT;
+	q.crcType = RCV_RSP02_CRC_TYPE;
 
 #else
 
@@ -1023,7 +1023,7 @@ static Ptr<REQ> CreateRcvReq05(byte adr, byte n, u16 tryCount)
 	ReqRcv05 &req = *((ReqRcv05*)rq->reqData);
 	adr = (adr-1)&15; 
 
-	q.crcType = REQ::CRC16_CCIT;
+	q.crcType = RCV_RSP02_CRC_TYPE;
 
 	q.CallBack = CallBackRcvReq05;
 	q.preTimeOut = MS2COM(1);

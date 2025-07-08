@@ -50,6 +50,11 @@
 
 #define RCV_SAMPLE_LEN 1024
 
+//#define RCV_RSP02_CRC16_CCIT	
+//#define RCV_RSP02_CRC_TYPE		REQ::CRC16_CCIT
+#define RCV_RSP02_CRC16
+#define RCV_RSP02_CRC_TYPE		REQ::CRC16
+
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 #define TRANSMITER_NUM	3	// 0 - Monopole1, 1 - Monopole1, 2 - DipoleXY

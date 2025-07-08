@@ -22,7 +22,7 @@ static S_SPIM	spi1(1, HW::PIOG, SPI1_CS_MASK, ArraySize(SPI1_CS_MASK), SCLK);
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-#define SPORT_BUF_NUM 1
+#define SPORT_BUF_NUM 2
 
 bool adcEnable = true;
 
@@ -268,6 +268,8 @@ void SetGain(u16 v, bool preAmp)
 	dsc.wdata = &buf;
 	dsc.wlen = sizeof(buf);
 
+	buf = ReverseWord(0x2A01|((v&7)<<4));
+
 	spi1.AddRequest(&dsc);
 
 	//HW::SPI1->Baud	= 7; // SCLK=7MHz
@@ -284,8 +286,8 @@ static void InitGain()
 	PIO_GAIN->ClrFER(BM_GAIN);
 	PIO_GAIN->DirSet(BM_GAIN);
 
-	HW::PIOG->SetFER(PG8|PG9|PG11);
-	HW::PIOG->ClrMUX(PG8|PG9|PG11);
+	//HW::PIOG->SetFER(PG8|PG9|PG11);
+	//HW::PIOG->ClrMUX(PG8|PG9|PG11);
 }
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++

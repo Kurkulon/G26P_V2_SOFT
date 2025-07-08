@@ -17,6 +17,7 @@ enum { VERSION = 0x101 };
 
 static u16 numDevice = 0;
 static u16 numDevValid = 0;
+static u16 adrDevice = 0;
 //static u16 temp = 0;
 static u16 flashStatus = 0;
 
@@ -76,6 +77,12 @@ static bool cmdReboot = false;
 static u16 lastErasedBlock = ~0;
 
 static u32 curWriteReqAdr = 0;
+
+#ifdef RCV_RSP02_CRC16_CCIT
+#define Rsp02_GetCRC16 GetCRC16_CCIT_refl
+#elif defined(RCV_RSP02_CRC16)
+#define Rsp02_GetCRC16 GetCRC16
+#endif
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -155,11 +162,13 @@ i16 wave1[996] = { 235,281,279,205,65,-99,-227,-273,-225,-110,16,97,106,46,-45,-
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-static List<DSCRSP02> readyRSP02;
+static List<DSCRSP02> readyRSP02; // Неупакованные вектора
+static List<DSCRSP02> readyRSP05; // Упакованные вектора
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 static DSCRSP02 *wrDscRSP02 = 0;
+static DSCRSP02 *wrDscRSP05 = 0;
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -191,6 +200,7 @@ static bool RequestFunc01(byte *data, u16 len, ComPort::WriteBuffer *wb)
 	if (n > RCV_FIRE_NUM) n = RCV_FIRE_NUM;
 
 	if (wrDscRSP02 != 0) FreeDscSPORT(wrDscRSP02), wrDscRSP02 = 0;
+	if (wrDscRSP05 != 0) FreeDscSPORT(wrDscRSP05), wrDscRSP05 = 0;
 
 	DSCRSP02 *dsc = AllocDscSPORT();
 
@@ -259,6 +269,7 @@ static bool RequestFunc02(byte *data, u16 len, ComPort::WriteBuffer *wb)
 	byte n = req.n;
 	
 	if (wrDscRSP02 == 0) wrDscRSP02 = readyRSP02.Get();
+	if (wrDscRSP05 == 0) wrDscRSP05 = readyRSP05.Get();
 
 	if (wrDscRSP02 != 0)
 	{
@@ -269,8 +280,8 @@ static bool RequestFunc02(byte *data, u16 len, ComPort::WriteBuffer *wb)
 	}
 	else
 	{
-		buf[0] = 0xAA30 + (n<<4) + req.adr-1;
-		buf[1] = GetCRC16_CCIT_refl(buf, 2);
+		buf[0] = (RCV_MAN_REQ_WORD|0X30) + (n<<4) + req.adr-1;
+		buf[1] = Rsp02_GetCRC16(buf, 2);
 
 		wb->data = buf;
 		wb->len = sizeof(buf);
@@ -347,18 +358,56 @@ static bool RequestFunc04(byte *data, u16 len, ComPort::WriteBuffer *wb)
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+static bool RequestFunc05(byte *data, u16 len, ComPort::WriteBuffer *wb)
+{
+	static u16 buf[2];
+
+	ReqRcv05::Req &req = *((ReqRcv05::Req*)data);
+
+	if (req.n > RCV_FIRE_NUM)
+	{
+		return false;
+	};
+
+	if (req.adr == 0) return  false;
+
+	byte n = req.n;
+
+	if (wrDscRSP05 == 0) wrDscRSP05 = readyRSP05.Get();
+
+	if (wrDscRSP05 != 0)
+	{
+		RspRcv02 &rsp = wrDscRSP05->r02;
+
+		wb->data = &rsp;
+		wb->len = wrDscRSP05->len;
+	}
+	else
+	{
+		buf[0] = (RCV_MAN_REQ_WORD|0X30) + (n<<4) + req.adr-1;
+		buf[1] = Rsp02_GetCRC16(buf, 2);
+
+		wb->data = buf;
+		wb->len = sizeof(buf);
+	};
+
+	return true;
+}
+
+//+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 typedef bool (*REQF)(byte *req, u16 len, ComPort::WriteBuffer *wb);
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-static REQF listReq[4] = { RequestFunc01, RequestFunc02, RequestFunc03, RequestFunc04 };
+static REQF listReq[5] = { RequestFunc01, RequestFunc02, RequestFunc03, RequestFunc04, RequestFunc05 };
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 static bool RequestFunc(const ComPort::ReadBuffer *rb, ComPort::WriteBuffer *wb)
 {
 	//static NewRequest nulReq;
-	static const byte fl[4] = { sizeof(ReqRcv01::r[0])-1, sizeof(ReqRcv02::r[0])-1, sizeof(ReqRcv03::r[0])-1, sizeof(ReqRcv04::r[0])-1 };
+	static const byte fl[5] = { sizeof(ReqRcv01::r[0])-1, sizeof(ReqRcv02::r[0])-1, sizeof(ReqRcv03::r[0])-1, sizeof(ReqRcv04::r[0])-1, sizeof(ReqRcv05::r[0])-1 };
 
 	if (rb == 0 || rb->len < 4) return false;
 
@@ -374,9 +423,9 @@ static bool RequestFunc(const ComPort::ReadBuffer *rb, ComPort::WriteBuffer *wb)
 		byte adr = p[1];
 		byte func = p[2]-1;
 
-		if (func < 4 && len == fl[func] && len < rlen && GetCRC16(p+1, len) == 0)
+		if (func < ArraySize(fl) && len == fl[func] && len < rlen && GetCRC16(p+1, len) == 0)
 		{
-			if (adr != 0 && adr != GetNetAdr()) return false;
+			if (adr != 0 && adr != adrDevice) return false;
 
 			result = listReq[func](p, len+1, wb);
 
@@ -500,6 +549,8 @@ static void UpdateSport()
 	//static u16 sd = 0;
 
 	static DSCRSP02 *dsc = 0;
+	static DSCRSP02 *dscunp = 0;
+
 	//static DSCRSP02 *prsp = 0;
 
 	//RspRcv02 &rsp = rsp02;
@@ -507,7 +558,7 @@ static void UpdateSport()
 	switch(sportState)
 	{
 		case 0:
-			
+
 			dsc = GetDscSPORT();
 
 			if (dsc != 0)
@@ -537,9 +588,102 @@ static void UpdateSport()
 
 		case 1:
 		{
+			dscunp = AllocDscSPORT();
+
+			if (dscunp != 0)
+			{
+				HW::PIOF->BSET(7);
+
+				RspRcv02 &rsp = dsc->r02;
+				RspRcv02 &unp = dscunp->r02;
+
+				rsp.hdr.rw			= (RCV_MAN_REQ_WORD|0X30) + (dsc->fireN<<4) + adrDevice-1;
+				unp.hdr.rw			= rsp.hdr.rw;
+				unp.hdr.cnt			= rsp.hdr.cnt;
+				unp.hdr.preAmp		= rsp.hdr.preAmp;
+				unp.hdr.gain		= rsp.hdr.gain;
+				unp.hdr.st			= rsp.hdr.st;
+				unp.hdr.sl			= rsp.hdr.sl;
+				unp.hdr.sd			= rsp.hdr.sd;
+				unp.hdr.packType	= PACK_NO;
+				unp.hdr.math		= 0;
+				unp.hdr.packLen1	= unp.hdr.sl;
+				unp.hdr.packLen2	= unp.hdr.sl;
+				unp.hdr.packLen3	= unp.hdr.sl;
+				unp.hdr.packLen4	= unp.hdr.sl;
+
+				for (byte n = 0; n < 4; n++)
+				{
+					const	u16	*src	= rsp.data + dsc->sportLen*n;
+							u16	*dst	= unp.data + unp.hdr.sl*n;
+
+							i32 max = 0;
+							i32 min = 65535;
+							u32 pow = 0;
+
+					for (u16 i = 0; i < unp.hdr.sl; i++)
+					{
+						i32 t = *src++;
+
+						t -= 0x8000;
+
+						*dst++ = t;
+
+						max = Max32(t, max);
+						min = Min32(t, min);
+
+						pow += ABS(t);//__builtin_abs((i16)(t - 0x8000));
+					};
+
+					maxAmp[n]	= Min32(ABS((max-min)/2), 32767); // - min;
+					power[n]	= (unp.hdr.sl > 0) ? (pow / unp.hdr.sl) : 0;
+				};
+
+				dscunp->len = sizeof(unp.hdr) + unp.hdr.sl*8;
+
+				sportState++;
+
+				HW::PIOF->BCLR(7);
+			};
+
+			break;
+		};
+
+		case 2:
+		{
+			HW::PIOF->BSET(7);
+
+			RspRcv02 &unp = dscunp->r02;
 			RspRcv02 &rsp = dsc->r02;
 
-			rsp.hdr.rw			= 0xAA30 + (dsc->fireN<<4) + GetNetAdr()-1;
+			dscunp->data[dscunp->len/2] = Rsp02_GetCRC16(&dscunp->r02, dscunp->len);
+			dscunp->len += 2;
+
+			readyRSP02.Add(dscunp); dscunp = 0;
+
+			if (rsp.hdr.math != 0 || rsp.hdr.packType != PACK_NO)
+			{
+				sportState++;
+			}
+			else
+			{
+				FreeDscSPORT(dsc);
+
+				sportState = 0;
+			};
+
+			HW::PIOF->BCLR(7);
+
+			break;
+		};
+
+		case 3:
+		{
+			HW::PIOF->BSET(7);
+
+			RspRcv02 &rsp = dsc->r02;
+
+			//rsp.hdr.rw			= (RCV_MAN_REQ_WORD|0X30) + (dsc->fireN<<4) + GetNetAdr()-1;
 
 			rsp.hdr.packLen1	= dsc->sportLen;
 
@@ -548,90 +692,63 @@ static void UpdateSport()
 				rsp.hdr.packLen2	= dsc->sportLen;
 				rsp.hdr.packLen3	= dsc->sportLen;
 				rsp.hdr.packLen4	= dsc->sportLen;
+
+				for (byte n = 0; n < 4; n++)
+				{
+					u16 *p = rsp.data + dsc->sportLen*n;
+
+					for (u16 i = 0; i < dsc->sportLen; i++)
+					{
+						*p++ -= 0x8000;
+					};
+				};
 			}
 			else if (rsp.hdr.math == 1) // Среднее
 			{
 				rsp.hdr.packLen2	= 0;
 				rsp.hdr.packLen3	= 0;
 				rsp.hdr.packLen4	= 0;
+
+				u16 *p1 = rsp.data + dsc->sportLen*0;
+				u16 *p2 = rsp.data + dsc->sportLen*1;
+				u16 *p3 = rsp.data + dsc->sportLen*2;
+				u16 *p4 = rsp.data + dsc->sportLen*3;
+
+				for (u16 i = 0; i < dsc->sportLen; i++)
+				{
+					*p1 = (*p1+*(p2++)+*(p3++)+*(p4++))/4-0x8000; p1++;
+				};
+
 			}
 			else // Разница
 			{
 				rsp.hdr.packLen2	= dsc->sportLen;
 				rsp.hdr.packLen3	= 0;
 				rsp.hdr.packLen4	= 0;
-			};
 
-			u16 *p1 = rsp.data + dsc->sportLen*0;
-			u16 *p2 = rsp.data + dsc->sportLen*1;
-			u16 *p3 = rsp.data + dsc->sportLen*2;
-			u16 *p4 = rsp.data + dsc->sportLen*3;
+				u16 *p1 = rsp.data + dsc->sportLen*0;
+				u16 *p2 = rsp.data + dsc->sportLen*1;
+				u16 *p3 = rsp.data + dsc->sportLen*2;
+				u16 *p4 = rsp.data + dsc->sportLen*3;
 
-			u16 max[4] = {0, 0, 0, 0};
-			u16 min[4] = {65535, 65535, 65535, 65535 };
-
-			u32 pow[4] = {0, 0, 0, 0};
-
-			u16 t[4];
-
-			//i16 x;
-
-			for (u16 i = 0; i < dsc->sportLen; i++)
-			{
-				t[0] = *p1;
-				t[1] = *p2;
-				t[2] = *p3;
-				t[3] = *p4;
-
-				for (byte n = 0; n < 4; n++)
+				for (u16 i = 0; i < dsc->sportLen; i++)
 				{
-					max[n] = __builtin_max(t[n], max[n]);
-					min[n] = __builtin_min(t[n], min[n]);
-					pow[n] += __builtin_abs((i16)(t[n] - 0x8000));
+					*p1 = subsat16(*(p3++)-0x8000, *p1-0x8000); p1++;	
+					*p2 = subsat16(*p2-0x8000, *(p4++)-0x8000); p2++;
 				};
 
-				if (rsp.hdr.math == 0)
-				{
-					*p1 = t[0]-0x8000;
-					*p2 = t[1]-0x8000;
-					*p3 = t[2]-0x8000;
-					*p4 = t[3]-0x8000;
-				}
-				else if (rsp.hdr.math == 1) // Среднее
-				{
-					*p1 = (t[0]+t[1]+t[2]+t[3])/4-0x8000;
-				}
-				else // Разница
-				{
-					*p1 = subsat16(t[2]-0x8000, t[0]-0x8000); //(t[2]-t[0])/2;
-					*p2 = subsat16(t[3]-0x8000, t[1]-0x8000); //2;
-				};
-
-				p1++;
-				p2++;
-				p3++;
-				p4++;
 			};
-
-			for (byte i = 0; i < 4; i++)
-			{
-				maxAmp[i] = max[i] - min[i];
-				power[i] = (rsp.hdr.sl > 0) ? (pow[i] / rsp.hdr.sl) : 0;
-			};
-		
-			//FreeDscSPORT(dsc);
-
-			//dsc = 0;
 
 			dsc->len = sizeof(rsp.hdr) + (rsp.hdr.packLen1+rsp.hdr.packLen2+rsp.hdr.packLen3+rsp.hdr.packLen4)*2;
 
-			sportState = (rsp.hdr.packType == PACK_NO) ? 3 : (sportState+1);
+			sportState += (rsp.hdr.packType == PACK_NO) ? 2 : 1;
+
+			HW::PIOF->BCLR(7);
 
 			break;
-
 		};
 
-		case 2:
+		case 4:
 		{
 			HW::PIOF->BSET(7);
 
@@ -640,10 +757,14 @@ static void UpdateSport()
 			i16	*src	= (i16*)rsp.data;
 			byte *dst	= (byte*)rsp.data;
 
+			//u16 sl = rsp.hdr.packLen1;
+
 			rsp.hdr.packLen1 = WavePack(rsp.hdr.packType, src, dst, rsp.hdr.packLen1, rsp.hdr.packLen1); src += dsc->sportLen; dst += rsp.hdr.packLen1;
 			rsp.hdr.packLen2 = WavePack(rsp.hdr.packType, src, dst, rsp.hdr.packLen2, rsp.hdr.packLen2); src += dsc->sportLen; dst += rsp.hdr.packLen2; 
 			rsp.hdr.packLen3 = WavePack(rsp.hdr.packType, src, dst, rsp.hdr.packLen3, rsp.hdr.packLen3); src += dsc->sportLen; dst += rsp.hdr.packLen3; 
 			rsp.hdr.packLen4 = WavePack(rsp.hdr.packType, src, dst, rsp.hdr.packLen4, rsp.hdr.packLen4); 
+
+			//rsp.hdr.sl = sl;
 
 			dsc->len = sizeof(rsp.hdr) + rsp.hdr.packLen1 + rsp.hdr.packLen2 + rsp.hdr.packLen3 + rsp.hdr.packLen4;
 
@@ -652,23 +773,27 @@ static void UpdateSport()
 			rsp.hdr.packLen3 /= 2;
 			rsp.hdr.packLen4 /= 2;
 
-			HW::PIOF->BCLR(7);
-
 			sportState += 1;
+
+			HW::PIOF->BCLR(7);
 
 			break;
 		};
 
-		case 3:
+		case 5:
 		{
+			HW::PIOF->BSET(7);
+
 			RspRcv02 &rsp = dsc->r02;
 
-			dsc->data[dsc->len/2] = GetCRC16_CCIT_refl(&dsc->r02, dsc->len);
+			dsc->data[dsc->len/2] = Rsp02_GetCRC16(&dsc->r02, dsc->len);
 			dsc->len += 2;
 
-			readyRSP02.Add(dsc); dsc = 0;
+			readyRSP05.Add(dsc); dsc = 0;
 
 			sportState = 0;
+
+			HW::PIOF->BCLR(7);
 
 			break;
 		};
@@ -695,6 +820,11 @@ static void UpdateSaveParams()
 				cmdSaveParams = false;
 			};
 
+			if (numDevValid == 0 || numDevice == 0)
+			{
+				adrDevice = GetNetAdr();
+			};
+
 			if (cmdSaveParams)
 			{
 				i++;
@@ -704,13 +834,16 @@ static void UpdateSaveParams()
 
 		case 1:
 
-			mb = AllocMemBuffer(sizeof(numDevice)+2);
+			mb = AllocMemBuffer(sizeof(numDevice)+sizeof(adrDevice)+2);
 
 			if (mb.Valid())
 			{
 				u16 *p = (u16*)mb->GetDataPtr();
 
-				p[0] = numDevice;
+				*(p++) = numDevice;
+				*(p++) = adrDevice;
+
+				mb->len = (p - (u16*)mb->GetDataPtr())*2;
 
 				FlashSaveParams(mb);
 
@@ -729,12 +862,12 @@ static void UpdateSaveParams()
 
 static void LoadParams()
 {
-	static u16 aaa[2];
+	static u16 aaa[3];
 
 	numDevice = 0;
 	numDevValid = 0;
 
-	if (FlashLoadParams(aaa, sizeof(aaa))) numDevice = aaa[0], numDevValid = 1;
+	if (FlashLoadParams(aaa, sizeof(aaa))) numDevice = aaa[0], adrDevice = aaa[1], numDevValid = 1;
 }
 
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -803,9 +936,9 @@ static void InitTaskList()
 {
 	static Task tsk[] =
 	{
-		Task(UpdateBlackFin,			US2CTM(10)	),
-		Task(UpdateHardware,			US2CTM(10)	),
-		Task(UpdateSport,				US2CTM(10)	),
+		Task(UpdateBlackFin,			US2CTM(5)	),
+		Task(UpdateHardware,			US2CTM(1)	),
+		Task(UpdateSport,				US2CTM(7)	),
 		Task(UpdateSaveParams,			US2CTM(10)	),
 	};
 
@@ -832,7 +965,7 @@ void main( void )
 
 	LoadParams();
 
-//	InitNetAdr();
+	InitTaskList();
 
 	while (1)
 	{
