@@ -192,6 +192,8 @@ static bool RequestBoot_03_ExitBootLoader(ReqMes &req, RspMes &rsp)
 
 bool RequestBoot(Ptr<MB> &mb, ComPort::WriteBuffer *wb)
 {
+	static RspMes rsp;
+
 	FLWB &flwb = *((FLWB*)(mb->GetDataPtr()));
 	ReqMes &req = *((ReqMes*)flwb.data);
 	BootReqV1::SF0 &rq = req.mes.F0;
@@ -217,7 +219,7 @@ bool RequestBoot(Ptr<MB> &mb, ComPort::WriteBuffer *wb)
 		//case 1: c = RequestBoot_01_GetCRC(req, rsp);			break;
 		//case 2: c = RequestBoot_02_WritePage(mb, rsp);			break;
 		//case 3: c = RequestBoot_03_ExitBootLoader(req, rsp);	break;
-		//case 4: c = Request_04_SetTimeOut(req, rsp);		break;
+		//case 4: c = Request_04_SetTimeOut(req, rsp);			break;
 	};
 
 	return c;

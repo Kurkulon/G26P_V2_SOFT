@@ -7,7 +7,7 @@
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-#define FLASHSPI_EXTWDT_TIMEOUT	(MS2CTM(100))
+//#define FLASHSPI_EXTWDT_TIMEOUT	(MS2CTM(100))
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -26,8 +26,8 @@
 
 #define CLKIN_DIV			1	// 1, 2
 
-#define PLL_MUL				16	// 5...64
-#define SCLK_DIV			4	// 1...15
+#define PLL_MUL				8	// 5...64
+#define SCLK_DIV			2	// 1...15
 #define CCLK_CSEL			0	// 0...3
 #define CCLK_DIV			(1UL<<CCLK_CSEL)
 
@@ -55,26 +55,25 @@
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-#define MS2CLK(x) ((u64)((x)*1.0*SCLK/1e3+0.5))
-#define US2CLK(x) ((u64)((x)*1.0*SCLK/1e6+0.5))
-#define NS2CLK(x) ((u64)((x)*1.0*SCLK/1e9+0.5))
+#define MS2SCLK(x) ((u64)((x)*SCLK_MHz*1000))
+#define US2SCLK(x) ((u64)((x)*SCLK_MHz))
+#define NS2SCLK(x) ((u64)(((x)*SCLK_MHz+500)/1000))
 
-//#define MS2CLK(x) (((x)*SCLK+500)/1000)
-//#define US2CLK(x) (((x)*SCLK+500000)/1000000)
-//#define NS2CLK(x) (((x)*SCLK+500000000)/1000000000)
+//#define MS2SCLK0(x) ((u64)((x)*SCLK0_MHz*1000))
+//#define US2SCLK0(x) ((u64)((x)*SCLK0_MHz))
+//#define NS2SCLK0(x) ((u64)(((x)*SCLK0_MHz+500)/1000))
+//
+//#define MS2SCLK1(x) ((u64)((x)*SCLK1_MHz*1000))
+//#define US2SCLK1(x) ((u64)((x)*SCLK1_MHz))
+//#define NS2SCLK1(x) ((u64)(((x)*SCLK1_MHz+500)/1000))
 
-#define MS2SCLK(x) MS2CLK(x)
-#define US2SCLK(x) US2CLK(x)
-#define NS2SCLK(x) NS2CLK(x)
+#define MS2CCLK(x) ((u64)((x)*CCLK_MHz*1000))
+#define US2CCLK(x) ((u64)((x)*CCLK_MHz))
+#define NS2CCLK(x) ((u64)(((x)*CCLK_MHz+500)/1000))
 
-#define MS2CCLK(x) ((u64)((x)*1.0*CCLK/1e3+0.5))
-#define US2CCLK(x) ((u64)((x)*1.0*CCLK/1e6+0.5))
-#define NS2CCLK(x) ((u64)((x)*1.0*CCLK/1e9+0.5))
-
-//#define MS2CCLK(x) (((x)*CCLK+500)/1000)
-//#define US2CCLK(x) (((x)*CCLK+500000)/1000000)
-//#define NS2CCLK(x) (((x)*CCLK+500000000)/1000000000)
-
+#define MS2CLK(x) MS2SCLK(x)
+#define US2CLK(x) US2SCLK(x)
+#define NS2CLK(x) NS2SCLK(x)
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

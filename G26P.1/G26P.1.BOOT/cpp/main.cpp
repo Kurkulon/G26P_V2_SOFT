@@ -14,13 +14,14 @@
 #define BOOT_COM_PARITY			RCV_BOOT_COM_PARITY	
 #define BOOT_COM_STOPBITS		RCV_BOOT_COM_STOPBITS	
 #define BOOT_COM_PRETIMEOUT		(~0)
-#define BOOT_COM_POSTTIMEOUT	(US2COM(500))
+#define BOOT_COM_POSTTIMEOUT	(US2COM(100))
+#define BOOT_COM_WRITEDELAY		(US2CTM(500))
 
 #define BOOT_MAN_REQ_WORD		RCV_BOOT_REQ_WORD
 #define BOOT_MAN_REQ_MASK 		RCV_BOOT_REQ_MASK
 
 #define BOOT_HW_INIT 			InitHardware
-#define BOOT_HW_UPDATE 			UpdateADC
+#define BOOT_HW_UPDATE 			UpdateHardware
 
 //#define PIO_RTS					HW::PIOF
 //#define PIN_RTS					10
@@ -32,6 +33,8 @@
 #define	NUM_SMALL_BUF	60      
 #define	NUM_MEDIUM_BUF	1
 #define	NUM_HUGE_BUF	1
+
+#define FLASH_START_ADR 0x10000 	
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

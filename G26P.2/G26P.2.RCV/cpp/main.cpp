@@ -1406,7 +1406,7 @@ static Ptr<REQ> CreateRcvBootReq02(u16 adr, u16 stAdr, u16 count, void* data, u1
 
 	q.CallBack = CallBackRcvBootReq02;
 	q.preTimeOut = MS2COM(50);
-	q.postTimeOut = US2COM(100);
+	q.postTimeOut = US2COM(500);
 	q.ready = false;
 	q.tryCount = tryCount;
 	q.checkCRC = true;
@@ -3324,7 +3324,7 @@ static void FlashRcv()
 					{
 						len = max;
 
-						rq = CreateRcvBootReq02(i, adr, len, p, 0, 0, max, 2);
+						rq = CreateRcvBootReq02(i, adr, len, p, 0, 0, max, 10);
 					}
 					else
 					{
@@ -3332,11 +3332,11 @@ static void FlashRcv()
 
 						if (len > 2)
 						{
-							rq = CreateRcvBootReq02(i, adr, len-2, p, sizeof(flashCRC), &flashCRC, max, 2);
+							rq = CreateRcvBootReq02(i, adr, len-2, p, sizeof(flashCRC), &flashCRC, max, 10);
 						}
 						else
 						{
-							rq = CreateRcvBootReq02(i, adr, sizeof(flashCRC), &flashCRC, 0, 0, max, 2);
+							rq = CreateRcvBootReq02(i, adr, sizeof(flashCRC), &flashCRC, 0, 0, max, 10);
 						};
 					};
 
@@ -4246,9 +4246,9 @@ int main()
 	//__breakpoint(0);
 
 	
-	//FlashInitBoot();
+	FlashInitBoot();
 
-	//FlashRcv();
+	FlashRcv();
 	
 	//FlashTrm();
 

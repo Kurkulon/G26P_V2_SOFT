@@ -3,7 +3,7 @@
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
 #include "ADSP\system_imp.h"
-#include "i2c.h"
+#include "spi.h"
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -11,6 +11,11 @@
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+static u16 SPI1_CS_MASK[] = { PG11, PG12 };
+
+static S_SPIM	spi1(1, HW::PIOG, SPI1_CS_MASK, ArraySize(SPI1_CS_MASK), SCLK);
+
+#define adcEnable 1
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
@@ -18,7 +23,13 @@ void InitHardware()
 {
 	LowLevelInit();
 
-	I2C_Init(SCLK_MHz, IVG_TWI, PID_TWI);
+	spi1.Connect(1000000);
+
+	CTM32 tm;
+
+	tm.Reset();
+
+	while(!tm.Check(MS2CTM(10))) UpdateHardware();
 }
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
@@ -27,80 +38,27 @@ void InitHardware()
 
 #include <G26P_1_UpdateADC_imp.h>
 
-//void UpdateHardware()
-//{
-//	static byte i = 0;
-//	static DSCI2C dsc;
-//	static byte wbuf[4];
-//	static byte rbuf[4];
-//	static byte adr = 0x28;
-//	static CTM32 tm;
-//	static u32 filtFV = ~0;
-//
-//	switch (i)
-//	{
-//		case 0:
-//
-//			if (tm.Check(US2CTM(500)))
-//			{
-//				wbuf[0] = 0x20;	
-//
-//				dsc.adr = 0x28|(adr&1);
-//				dsc.wdata = wbuf;
-//				dsc.wlen = 1;
-//				dsc.rdata = rbuf;
-//				dsc.rlen = 2;
-//				dsc.wdata2 = 0;
-//				dsc.wlen2 = 0;
-//
-//				I2C_AddRequest(&dsc);
-//
-//				i++;
-//			};
-//
-//			break;
-//
-//		case 1:
-//
-//			if (dsc.ready)
-//			{
-//				if (dsc.ack)
-//				{
-//					byte *p = rbuf;
-//
-//					for (u32 i = dsc.readedLen; i > 0; i -= 2, p += 2)
-//					{
-//						byte ch = (p[0] >> 4) & 3;
-//
-//						u16 res = ((p[0]<<8)|p[1]) & 0xFFF;
-//
-//						if (ch == 1)
-//						{
-//							if (filtFV == ~0) 
-//							{
-//								filtFV = res << 4;
-//							}
-//							else
-//							{
-//								filtFV += res - (filtFV>>4);
-//							};
-//
-//							fltResist = RCV_FltResist(filtFV);	// * 941 + 2048) / 4096; //51869
-//							netResist = RCV_NetResist(res);		// * 941 + 128) / 256; 
-//						};
-//					};
-//				}
-//				else
-//				{
-//					adr ^= 1;
-//				};
-//
-//				i = 0;
-//			};
-//
-//			break;
-//	};
-//}
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+void UpdateHardware()
+{
+	static byte i = 0;
+
+	#define CALL(p) case (__LINE__-S): p; break;
+
+	enum C { S = (__LINE__+3) };
+	switch(i++)
+	{
+		CALL( UpdateADC()	);
+		CALL( spi1.Update()	);
+	};
+
+	i = (i > (__LINE__-S-3)) ? 0 : i;
+
+	#undef CALL
+
+	*pWDOG_STAT = 0; //Reset WDT
+}
 
 //#endif
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
