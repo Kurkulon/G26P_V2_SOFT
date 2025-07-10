@@ -52,10 +52,10 @@ static S_SPIM	spi(0, HW::PIOF, SPI_CS_MASK, ArraySize(SPI_CS_MASK), SCLK);
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
-#undef BOOT_TIMEOUT			
-#undef BOOT_MAIN_TIMEOUT	
-#define BOOT_TIMEOUT			(2000)
-#define BOOT_MAIN_TIMEOUT		(100000)
+//#undef BOOT_TIMEOUT			
+//#undef BOOT_MAIN_TIMEOUT	
+//#define BOOT_TIMEOUT			(2000)
+//#define BOOT_MAIN_TIMEOUT		(100000)
 
 #define Pin_MainLoop_Tgl()		MAIN_LOOP_PIN_TGL()
 

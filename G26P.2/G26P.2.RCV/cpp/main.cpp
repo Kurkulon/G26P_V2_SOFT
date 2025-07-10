@@ -1371,7 +1371,7 @@ static bool CallBackRcvBootReq02(Ptr<REQ> &q)
 	{
 		BootRspV1::SF2 &rsp = *((BootRspV1::SF2*)q->rb.data);
 
-		if (rsp.res != 0) /*wrtErr06++,*/ retry = true;
+		if (rsp.res == 0) /*wrtErr06++,*/ retry = true;
 	};
 
 	if (retry && q->tryCount > 0)
@@ -1406,7 +1406,7 @@ static Ptr<REQ> CreateRcvBootReq02(u16 adr, u16 stAdr, u16 count, void* data, u1
 
 	q.CallBack = CallBackRcvBootReq02;
 	q.preTimeOut = MS2COM(50);
-	q.postTimeOut = US2COM(500);
+	q.postTimeOut = US2COM(100);
 	q.ready = false;
 	q.tryCount = tryCount;
 	q.checkCRC = true;
