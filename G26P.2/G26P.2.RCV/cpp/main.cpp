@@ -3475,7 +3475,7 @@ static void ReadNumDevRcvTrm()
 {
 	Ptr<REQ> rq;
 
-	u16 tryCount = 6;
+	u16 tryCount = 30;
 	
 	rcvStatus = 0;
 	
@@ -4250,9 +4250,9 @@ int main()
 
 	FlashRcv();
 	
-	//FlashTrm();
+	FlashTrm();
 
-	//ReadNumDevRcvTrm();
+	ReadNumDevRcvTrm();
 
 	InitTaskList();
 
