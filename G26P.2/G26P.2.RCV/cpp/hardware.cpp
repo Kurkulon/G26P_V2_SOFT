@@ -582,6 +582,274 @@ u16 Get_AVMAN()
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+#ifdef MAN_TRANSMIT_SSC
+
+#pragma push
+//#pragma O3
+//#pragma Otime
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+#define BAUD2CLK(x) ((u32)(MCK/2/(x)+0.5))
+
+static const u16 manbaud[5] = { BAUD2CLK(20833), BAUD2CLK(41666), BAUD2CLK(62500), BAUD2CLK(83333), BAUD2CLK(104166) };//0:20833Hz, 1:41666Hz,2:62500Hz,3:83333Hz
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+static u16 GetTrmBaudRate(byte i)
+{
+	if (i >= ArraySize(manbaud)) { i = ArraySize(manbaud) - 1; };
+
+	return (manbaud[i]+1)/2;
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+#define _MAN_SSC_TCMR	(SSC_TCKS_MCK|SSC_TCKO_TRANSFER|SSC_TCKI)
+#define _MAN_SSC_TFMR	(SSC_TDATLEN(20)|SSC_TMSBF|SSC_TFSOS_HIGH)
+
+#define ManDisableTransmit()		{ HW::SSC->CR = SSC_TXDIS; HW::SSC->IDR = ~0; }
+#define ManTransmit_ClockEnable()	{ HW::PMC->ClockEnable(HW::PID::SSC_I); }
+
+inline void ManDisable()	{ } 
+inline void ManZero()		{ } 
+inline void ManOne()		{ } 
+inline void ManDischarge()	{ } 
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+static byte stateManTrans = 0;
+static MTB *manTB = 0;
+static bool trmBusy = false;
+static bool trmTurbo = false;
+static bool rcvBusy = false;
+static const u16 *mantPtr = 0;
+static u16 mantLen = 0;
+static u32 manBuf[8];
+static byte manBufStart = 0;
+static byte manBufEnd = 0;
+static byte manBufLen = 0;
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+inline void ManBufAdd(u32 v)
+{
+	manBuf[manBufEnd] = v;
+	manBufEnd = (manBufEnd+1) & (ArraySize(manBuf)-1);
+	manBufLen += 1;
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+inline u32 ManBufGet()
+{
+	u32	v = manBuf[manBufStart];
+
+	manBufStart = (manBufStart+1) & (ArraySize(manBuf)-1);
+	manBufLen -= 1;
+
+	return v;
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+inline bool ManBufEmpty()		{ return manBufLen == 0; }
+inline bool ManBufFull()		{ return manBufLen == ArraySize(manBuf); }
+inline byte ManBufFreeLen()		{ return ArraySize(manBuf)-manBufLen; }
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+union ManBits
+{
+	struct
+	{
+		u64 pr : 2;
+		u64 b1 : 8;
+		u64 b2 : 8;
+		u64 b3 : 8;
+		u64 b4 : 8;
+		u64 st : 6;
+	};
+
+	struct
+	{
+		u64 dw1 : 20;
+		u64 dw2 : 20;
+	};
+};
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+static u16 word2man[16] = {
+	0x00AA, // 1010	1010    	
+	0x80A9, // 1010	1001
+	0x80A6, // 1010	0110
+	0x00A5, // 1010	0101
+	0x809A, // 1001	1010
+	0x0099, // 1001	1001
+	0x0096, // 1001	0110
+	0x8095, // 1001	0101
+	0x806A, // 0110	1010
+	0x0069, // 0110	1001
+	0x8066, // 0110	0110
+	0x8065, // 0110	0101
+	0x005A, // 0101	1010
+	0x8859, // 0101	1001
+	0x8856, // 0101	0110
+	0x0055, // 0101	0101
+};
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+inline void GetManBits(ManBits &man, u16 t)
+{
+	u16 r1 = word2man[t&15];
+	man.b1 = r1;
+
+	u16 parity = r1;
+
+	r1 = word2man[(t>>4)&15];
+	man.b2 = r1;
+	parity ^= r1;
+
+	r1 = word2man[(t>>8)&15];
+	man.b3 = r1;
+	parity ^= r1;
+
+	r1 = word2man[(t>>12)&15];
+	man.b4 = r1;
+	parity ^= r1;
+
+	man.pr = 2 - (parity>>15);
+	man.st = 0x38;
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+static __irq void ManTrm_ISR()
+{
+	HW::PIOA->BSET(21);
+
+	u32 stat = HW::SSC->SR & HW::SSC->IMR;
+
+	if (stat & SSC_TXRDY)
+	{
+		if (mantLen > 0)
+		{
+			if (ManBufFreeLen() >= 2)
+			{
+				ManBits man;
+
+				GetManBits(man, *(mantPtr++));
+
+				ManBufAdd(man.dw2); //;man.dw2;
+				ManBufAdd(man.dw1); //man.dw1;
+
+				mantLen -= 1;
+
+				if (mantLen == 0 && manTB->data2 != 0 && manTB->len2 != 0)
+				{
+					mantPtr = manTB->data2;
+					mantLen = manTB->len2;
+					manTB->len2 = 0;
+				};
+			};
+		};
+
+		if (!ManBufEmpty())
+		{
+			HW::SSC->THR = ManBufGet(); //man.dw1;
+		}
+		else
+		{
+			//HW::SSC->THR = 0;
+			HW::SSC->IDR = SSC_TXRDY;
+			HW::SSC->IER = SSC_TXEMPTY;
+		};
+	}
+	else if (stat & SSC_TXEMPTY)
+	{
+		ManDisableTransmit();
+
+		manTB->ready = true;
+		trmBusy = false;
+
+		HW::PIOA->BCLR(22);
+	};
+
+	HW::PIOA->BCLR(21);
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+bool SendManDataSSC(MTB *mtb)
+{
+	if (trmBusy || rcvBusy || mtb == 0 || mtb->data1 == 0 || mtb->len1 == 0)
+	{
+		return false;
+	};
+
+	mtb->ready = false;
+
+	manTB = mtb;
+
+	mantPtr = mtb->data1;
+	mantLen = mtb->len1;
+
+	stateManTrans = 0;
+
+	ManBits man;
+
+	GetManBits(man, *(mantPtr++)); mantLen--;
+
+	//ManBufAdd(man.dw2); 
+	//ManBufAdd(man.dw1); 
+
+	HW::SSC->CMR	= SSC_DIV(GetTrmBaudRate(mtb->baud)); 
+	HW::SSC->TCMR	= _MAN_SSC_TCMR;
+	HW::SSC->TFMR	= _MAN_SSC_TFMR;
+	HW::SSC->IDR	= ~SSC_TXRDY;
+	HW::SSC->CR		= SSC_TXEN;
+
+	HW::SSC->THR = man.dw2;
+
+	while ((HW::SSC->SR & SSC_TXRDY) == 0);
+
+	HW::SSC->THR = man.dw1;
+
+	HW::SSC->IER = SSC_TXRDY;
+
+	HW::PIOA->BSET(22);
+
+	return trmBusy = true;
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+static void InitManTransmitSSC()
+{
+	HW::PIOA->PDR = PA15|PA16|PA17;
+	HW::PIOA->ABCDSR1 &= ~(PA15|PA16|PA17);
+	HW::PIOA->ABCDSR2 &= ~(PA15|PA16|PA17);
+
+	HW::PIOA->PUDR = PA15|PA16|PA17;
+	HW::PIOA->PPDER = PA15|PA16|PA17;
+
+	ManTransmit_ClockEnable();
+
+	HW::SSC->CR	= SSC_SWRST;
+
+	VectorTableExt[SSC_IRQ] = ManTrm_ISR;
+	CM4::NVIC->CLR_PR(SSC_IRQ);
+	CM4::NVIC->SET_ER(SSC_IRQ);
+}
+
+#pragma pop
+
+#endif // #if defined(CPU_BF706) && defined(MAN_TRANSMIT)
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 void InitHardware()
 {
 	SEGGER_RTT_WriteString(0, RTT_CTRL_TEXT_BRIGHT_YELLOW "Hardware Init ... ");
@@ -632,6 +900,9 @@ void InitHardware()
 	InitManRecieve();
 	InitManTransmit();
 
+#ifdef MAN_TRANSMIT_SSC
+	InitManTransmitSSC();
+#endif
 	Init_ADC();
 
 	//Init_CRC_CCITT_DMA();

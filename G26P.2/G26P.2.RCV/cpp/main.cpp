@@ -2399,6 +2399,10 @@ static void UpdateMan()
 
 				SendManData(&mtb);
 
+				#ifdef MAN_TRANSMIT_SSC
+					SendManDataSSC(&mtb);
+				#endif			
+
 				i++;
 			};
 
