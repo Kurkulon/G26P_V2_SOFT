@@ -1,8 +1,8 @@
+#include "hw_conf.h"
 #include "core.h"
 #include "time.h"
 #include "spi.h"
 #include "SEGGER_RTT\SEGGER_RTT.h"
-#include "hw_conf.h"
 
 #ifdef CPU_SAME53
 static u32 SPI_CS_MASK[] = { CS0, CS1 };

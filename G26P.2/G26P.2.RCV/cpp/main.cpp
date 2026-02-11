@@ -223,6 +223,7 @@ static u16 vibration;
 i16 temperature = 0;
 i16 cpuTemp = 0;
 i16 temp = 0;
+i16 temp2 = 0;
 
 static byte svCount = 0;
 
@@ -2174,6 +2175,46 @@ static bool RequestMan_72(u16 *data, u16 len, MTB* mtb)
 
 //++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
+static u32 InitRspMan_73(u16 rw, __packed u16 *data)
+{
+	__packed u16 *start = data;
+
+	*(data++) = rw; 																	//	1. 	ответное слово
+
+	for (byte i = 0; i < RCV_MAX_NUM_STATIONS; i++) 	*(data++) = arrRcvTemp[i];		//	2. Температура приёмника 1
+
+	return data - start;
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+static void RequestFlashWrite_73(Ptr<MB> &flwb)
+{
+	__packed u16* data = (__packed u16*)(flwb->GetDataPtr());
+
+	flwb->len = InitRspMan_73(manReqWord|0x73, data) * 2;
+
+	NandFlash_RequestWrite(flwb, data[0], true);
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+static bool RequestMan_73(u16 *data, u16 len, MTB* mtb)
+{
+	if (data == 0 || len == 0 || len > 4 || mtb == 0) return false;
+
+	len = InitRspMan_73(data[0], manTrmData);
+
+	mtb->data1 = manTrmData;
+	mtb->len1 = len;
+	mtb->data2 = 0;
+	mtb->len2 = 0;
+
+	return true;
+}
+
+//++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
 static bool RequestMan_80(u16 *data, u16 len, MTB* mtb)
 {
 	if (data == 0 || len < 3 || len > 4 || mtb == 0) return false;
@@ -2311,6 +2352,7 @@ static bool RequestMan(u16 *buf, u16 len, MTB* mtb)
 		case 0x30:	r = RequestMan_30(buf, len, mtb); break;
 		case 0x71: 	r = RequestMan_71(buf, len, mtb); break;
 		case 0x72: 	r = RequestMan_72(buf, len, mtb); break;
+		case 0x73: 	r = RequestMan_73(buf, len, mtb); break;
 		case 0x80: 	r = RequestMan_80(buf, len, mtb); break;
 		case 0x90:	r = RequestMan_90(buf, len, mtb); break;
 		case 0xF0:	r = RequestMan_F0(buf, len, mtb); break;
@@ -2398,10 +2440,6 @@ static void UpdateMan()
 			#endif	
 
 				SendManData(&mtb);
-
-				#ifdef MAN_TRANSMIT_SSC
-					SendManDataSSC(&mtb);
-				#endif			
 
 				i++;
 			};
@@ -2922,12 +2960,7 @@ static u8 rxAccel[50];
 
 static bool AccelReadReg(byte reg, u16 count)
 {
-	byte y = reg ^ (reg >> 1);
-
-	y = y ^ (y >> 2);
-	y = y ^ (y >> 4) ^ 1;
-
-	dscAccel.adr = (reg<<2)|(y&1);
+	dscAccel.adr = (reg<<1)|1;
 	dscAccel.alen = 1;
 	//dscAccel.baud = 8000000;
 	dscAccel.csnum = 0;
@@ -2943,12 +2976,7 @@ static bool AccelReadReg(byte reg, u16 count)
 
 static bool AccelWriteReg(byte reg, u16 count)
 {
-	byte y = reg ^ (reg >> 1);
-
-	y = y ^ (y >> 2);
-	y = y ^ (y >> 4);
-
-	dscAccel.adr = (reg<<2)|2|(y&1);
+	dscAccel.adr = (reg<<1)|0;
 	dscAccel.alen = 1;
 	dscAccel.csnum = 0;
 	dscAccel.wdata = txAccel;
@@ -2965,131 +2993,154 @@ static void UpdateAccel()
 {
 	static byte i = 0; 
 	static i32 fx = 0, fy = 0, fz = 0, fv = 0, ft = 0;
-	static i16 tt = 0;
 
 	static TM32 tm;
 
 	switch (i)
 	{
-		case 0:
+	case 0:
 
+		txAccel[0] = 0x52;
+		AccelWriteReg(0x2F, 1); // Reset
+
+		i++;
+
+		break;
+
+	case 1:
+
+		if (dscAccel.ready)
+		{
 			tm.Reset();
 
 			i++;
+		};
 
-			break;
+		break;
 
-		case 1:
+	case 2:
 
-			if (tm.Check(35))
-			{
-				AccelReadReg(0x16, 1); // INT_STATUS
-
-				i++;
-			};
-
-			break;
-
-		case 2:
-
-			if (dscAccel.ready)
-			{
-				txAccel[0] = 0;
-				AccelWriteReg(0x1, 1); // CTRL Set PORST to zero
-
-				i++;
-			};
-
-			break;
-
-		case 3:
-
-			if (dscAccel.ready)
-			{
-				tm.Reset();
-
-				i++;
-			};
-
-			break;
-
-		case 4:
-
-			if (tm.Check(10))
-			{
-				AccelReadReg(0x9, 6); // Z_MSB - X_LSB 
-
-				i++;
-			};
-
-			break;
-
-		case 5:
-
-			if (dscAccel.ready)
-			{
-				i16 x = (rxAccel[4] << 8) | rxAccel[5];
-				i16 y = (rxAccel[2] << 8) | rxAccel[3];
-				i16 z = (rxAccel[0] << 8) | rxAccel[1];
-
-				fx += (x*45511 - fx) / 16;
-				fy += (y*45511 - fy) / 16;
-				fz += (z*45511 - fz) / 16;
-
-				ay =  (fz / 16384); 
-				az = -(fy / 16384); 
-				ax = -(fx / 16384);
-
-				i32 vx = ABS(x*45511 - fx);
-				i32 vy = ABS(y*45511 - fy);
-				i32 vz = ABS(z*45511 - fz);
-
-				fv += ((i32)(vx+vy+vz)-fv)/128;
-
-				i32 t = fv/16384;
-
-				vibration = LIM(t, 0, 0xFFFF);
-
-				i++;
-			};
-
-			break;
-
-		case 6:
-
-			AccelReadReg(0x13, 1); //TEMP_MSB
+		if (tm.Check(35))
+		{
+			AccelReadReg(0x1E, 18);
 
 			i++;
+		};
 
-			break;
+		break;
 
-		case 7:
+	case 3:
 
-			if (dscAccel.ready)
+		if (dscAccel.ready)
+		{
+			txAccel[0] = 0;
+			AccelWriteReg(0x28, 1); // FILTER SETTINGS REGISTER
+
+			i++;
+		};
+
+		break;
+
+	case 4:
+
+		if (dscAccel.ready)
+		{
+			txAccel[0] = 0;
+			AccelWriteReg(0x2D, 1); // CTRL Set PORST to zero
+
+			i++;
+		};
+
+		break;
+
+	case 5:
+
+		if (dscAccel.ready)
+		{
+			AccelReadReg(0x2D, 1);
+
+			i++;
+		};
+
+		break;
+
+	case 6:
+
+		if (dscAccel.ready)
+		{
+			if (rxAccel[0] != 0)
 			{
-				tt = rxAccel[0] << 8;
+				txAccel[0] = 0;
+				AccelWriteReg(0x2D, 1); // CTRL Set PORST to zero
+				i--; 
+			}
+			else
+			{
+				txAccel[0] = 0;
+				AccelWriteReg(0x2E, 1); // Self Test
 
-				AccelReadReg(0x12, 1); //TEMP_LSB
-
+				tm.Reset();
 				i++;
 			};
+		};
 
-			break;
+		break;
 
-		case 8:
+	case 7:
 
-			if (dscAccel.ready)
-			{
-				tt |= rxAccel[0];
+		if (dscAccel.ready)
+		{
+			i++;
+		};
 
-				ft += (((i32)tt * 125) - ft) / 32;
+		break;
 
-				at = (ft - 512 * 125 * 16) / 64 + 2300;
+	case 8:
 
-				i = 4;
-			};
+		if (tm.Check(10))
+		{
+			AccelReadReg(6, 11); // X_MSB 
 
-			break;
+			i++;
+		};
+
+		break;
+
+	case 9:
+
+		if (dscAccel.ready)
+		{
+			i32 t = (rxAccel[0] << 8)  | rxAccel[1];
+			i32 x = (rxAccel[2] << 24) | (rxAccel[3] << 16) | (rxAccel[4]  <<8);
+			i32 y = (rxAccel[5] << 24) | (rxAccel[6] << 16) | (rxAccel[7]  <<8);
+			i32 z = (rxAccel[8] << 24) | (rxAccel[9] << 16) | (rxAccel[10] <<8);
+
+			fx += (x - fx) / 16;
+			fy += (y - fy) / 16;
+			fz += (z - fz) / 16;
+			ft += (t - ft) / 4;
+
+			ay = -(fz / 65536); 
+			ax = -(fy / 65536); 
+			az =  (fx / 65536);
+
+			//at = 2500 + ((1852 - t) * 2000 + 91) / 181;
+			at = 2500 + ((1852 - ft) * 11315 + 512) / 1024;
+
+			i32 vx = ABS(x - fx) / 64;
+			i32 vy = ABS(y - fy) / 64;
+			i32 vz = ABS(z - fz) / 64;
+
+			fv += ((i32)(vx+vy+vz)-fv)/256;
+
+			t = fv/1024;
+
+			vibration = LIM(t, 0, 0xFFFF);
+
+			i--;
+		};
+
+		break;
 	};
 }
 
@@ -3116,13 +3167,12 @@ static void UpdateTemp()
 				if (!__debug) { HW::WDT->Update(); };
 
 				buf[0] = 0;
-				buf[1] = 41;
 
-				dsc.adr = 0x50;
+				dsc.adr = 0x49;
 				dsc.wdata = buf;
-				dsc.wlen = 2;
-				dsc.rdata = buf+2;
-				dsc.rlen = 1;
+				dsc.wlen = 1;
+				dsc.rdata = &rbuf;
+				dsc.rlen = 2;
 				dsc.wdata2 = 0;
 				dsc.wlen2 = 0;
 
@@ -3145,10 +3195,46 @@ static void UpdateTemp()
 					temp = (t * 10 + 64) / 128;
 				};
 
+				buf[0] = 0;
+
+				dsc.adr = 0x4B;
+				dsc.wdata = buf;
+				dsc.wlen = 1;
+				dsc.rdata = &rbuf;
+				dsc.rlen = 2;
+				dsc.wdata2 = 0;
+				dsc.wlen2 = 0;
+
+				i++;
+			};
+
+			break;
+
+		case 2:
+
+			if (I2C_AddRequest(&dsc))
+			{
+				i++;
+			};
+
+			break;
+
+		case 3:
+
+			if (dsc.ready)
+			{
+				if (dsc.ack && dsc.readedLen == dsc.rlen)
+				{
+					i32 t = (i16)ReverseWord(rbuf);
+
+					temp2 = (t * 10 + 64) / 128;
+				};
+
 				i = 0;
 			};
 
 			break;
+
 	};
 }
 
@@ -4262,6 +4348,8 @@ int main()
 
 	u32 fc = 0;
 
+	MTB mtb;
+
 	while (1)
 	{
 		Pin_MainLoop_Set();
@@ -4276,8 +4364,13 @@ int main()
 		{ 
 			fps = fc; fc = 0; 
 
-			//if ((fps & 3) == 0) SEGGER_RTT_printf(0, RTT_CTRL_TEXT_WHITE "%u\n", fps);
+			//mtb.baud = 0;
+			//mtb.data1 = (u16*)0x20000000;
+			//mtb.len1 = 2;
+			//mtb.data2 = 0;
+			//mtb.len2 = 0;
 
+			//SendManData(&mtb);
 		};
 
 	}; // while (1)

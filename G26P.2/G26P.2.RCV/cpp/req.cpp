@@ -1,3 +1,4 @@
+#include "G_HW_CONF.H"
 #include "req.h"
 
 //#include "CRC16.h"

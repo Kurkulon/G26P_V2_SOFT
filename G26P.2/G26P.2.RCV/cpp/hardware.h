@@ -1,6 +1,8 @@
 #ifndef HARDWARE_H__23_12_2013__11_37
 #define HARDWARE_H__23_12_2013__11_37
 
+#include "G_HW_CONF.H"
+
 #include "types.h"
 //#include "core.h"
 #include "time.h"
@@ -34,9 +36,6 @@ extern void UpdateHardware();
 extern u16 Get_NetResist();
 extern u16 Get_AVMAN();
 
-#ifdef MAN_TRANSMIT_SSC
-	extern bool SendManDataSSC(MTB *mtb);
-#endif
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 //+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 

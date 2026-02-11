@@ -43,7 +43,7 @@ target_name = G26P.2.RCV #$(targetcpu)
 !ifeq targetcpu SAM4SA
 
 cpu_compiler_options = --cpu=CORTEX-M4 --thumb
-cpu_asm_options = --cpu CORTEX-M4 --apcs /interwork --pd "__PROGNAME__ SETS \"KAPCAP G26P.2.1(8AD73_UPR)-1.5\""
+cpu_asm_options = --cpu CORTEX-M4 --apcs /interwork --pd "__PROGNAME__ SETS \"KAPCAP G26P.2.1(8AD73_UPR)-2.1\""
 cpu_link_options = --cpu CORTEX-M4
 cpu_obj = $(objdir)\startup_CM4.o
 cpu_scatter = $(libdir)\Scatter\SAM4SA_NO_BOOTLOADER.sct
